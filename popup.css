@@ -1,0 +1,380 @@
+/* Base styles */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  margin: 0;
+  padding: 0;
+  transition: all 0.3s ease;
+}
+
+/* Theme styles */
+body.light {
+  background: #ffffff;
+  color: #333333;
+}
+
+body.dark {
+  background: #000000;
+  color: #ffffff;
+}
+
+/* Navigation */
+.navbar {
+  background: #6200ea;
+  padding: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 2px solid #3700b3;
+}
+
+.nav-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  flex: 1;
+  min-width: 60px;
+}
+
+.nav-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.nav-btn.active {
+  background: #ffffff;
+  color: #6200ea;
+  font-weight: 600;
+}
+
+/* Tab content */
+.tab {
+  display: none;
+  padding: 20px;
+  animation: fadeIn 0.3s ease;
+}
+
+.tab.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Home tab specific styles */
+.scan-status {
+  background: #f5f5f5;
+  padding: 15px;
+  border-radius: 8px;
+  margin: 15px 0;
+  border-left: 4px solid #6200ea;
+}
+
+body.dark .scan-status {
+  background: #2a2a2a;
+  border-left-color: #bb86fc;
+}
+
+/* Status circle styling (moved from inline HTML) */
+#status-circle {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: gray;
+  margin: 10px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#status-text {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 500;
+  color: white;
+  margin: 0;
+}
+
+.status-safe {
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.status-warning {
+  color: #ff9800;
+  font-weight: 600;
+}
+
+.status-danger {
+  color: #f44336;
+  font-weight: 600;
+}
+
+.controls {
+  margin: 15px 0;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  margin: 8px 0;
+  cursor: pointer;
+}
+
+.toggle-label input[type="checkbox"] {
+  margin-right: 8px;
+  transform: scale(1.2);
+}
+
+/* Form elements */
+input[type="text"], 
+input[type="url"], 
+textarea {
+  width: 100%;
+  padding: 10px;
+  margin: 8px 0;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.3s ease;
+  box-sizing: border-box;
+}
+
+input[type="text"]:focus, 
+input[type="url"]:focus, 
+textarea:focus {
+  outline: none;
+  border-color: #6200ea;
+  box-shadow: 0 0 0 3px rgba(98, 0, 234, 0.1);
+}
+
+body.dark input[type="text"], 
+body.dark input[type="url"], 
+body.dark textarea {
+  background: #2a2a2a;
+  border-color: #555;
+  color: #ffffff;
+}
+
+body.dark input[type="text"]:focus, 
+body.dark input[type="url"]:focus, 
+body.dark textarea:focus {
+  border-color: #bb86fc;
+  box-shadow: 0 0 0 3px rgba(187, 134, 252, 0.1);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 80px;
+  max-height: 200px;
+}
+
+/* Buttons */
+.action-btn {
+  background: #6200ea;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  width: 100%;
+  margin: 5px 0;
+}
+
+.action-btn:hover {
+  background: #3700b3;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(98, 0, 234, 0.3);
+}
+
+.action-btn:active {
+  transform: translateY(0);
+}
+
+/* Lists */
+.list-container {
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 10px 0;
+}
+
+.domain-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.domain-list li {
+  background: #f8f9fa;
+  padding: 10px;
+  margin: 5px 0;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-left: 3px solid #6200ea;
+}
+
+body.dark .domain-list li {
+  background: #2a2a2a;
+  border-left-color: #bb86fc;
+}
+
+.domain-list li .remove-btn {
+  background: #f44336;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.domain-list li .remove-btn:hover {
+  background: #d32f2f;
+}
+
+/* Input groups */
+.input-group {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.input-group input {
+  flex: 1;
+  margin: 0;
+}
+
+.input-group .action-btn {
+  width: auto;
+  min-width: 80px;
+  margin: 0;
+}
+
+/* Settings */
+.setting-group {
+  margin: 15px 0;
+}
+
+.setting-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.radio-group {
+  display: flex;
+  gap: 15px;
+  margin: 8px 0;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.radio-label input[type="radio"] {
+  margin-right: 6px;
+}
+
+/* Report form */
+.report-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.report-form label {
+  margin-top: 10px;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+/* About section */
+.about-content {
+  line-height: 1.6;
+}
+
+.about-content ul {
+  padding-left: 20px;
+}
+
+.about-content li {
+  margin: 5px 0;
+}
+
+/* Responsive design */
+@media (max-width: 400px) {
+  body {
+    width: 100%;
+    min-width: 300px;
+  }
+  
+  .navbar {
+    padding: 8px;
+  }
+  
+  .nav-btn {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  
+  .tab {
+    padding: 15px;
+  }
+}
+
+/* Accessibility improvements */
+.nav-btn:focus,
+.action-btn:focus,
+input:focus,
+textarea:focus {
+  outline: 2px solid #6200ea;
+  outline-offset: 2px;
+}
+
+/* Loading states */
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Success/Error messages */
+.message {
+  padding: 10px;
+  border-radius: 6px;
+  margin: 10px 0;
+  font-weight: 500;
+}
+
+.message.success {
+  background: #e8f5e8;
+  color: #2e7d32;
+  border: 1px solid #4caf50;
+}
+
+.message.error {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #f44336;
+}
+
+body.dark .message.success {
+  background: #1b5e20;
+  color: #a5d6a7;
+}
+
+body.dark .message.error {
+  background: #b71c1c;
+  color: #ffcdd2;
+}

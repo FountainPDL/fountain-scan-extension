@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fountain Scan</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body class="light">
+  <div class="navbar">
+    <button class="nav-btn active" data-tab="home">Home</button>
+    <button class="nav-btn" data-tab="whitelist">Whitelist</button>
+    <button class="nav-btn" data-tab="blacklist">Blacklist</button>
+    <button class="nav-btn" data-tab="report">Report</button>
+    <button class="nav-btn" data-tab="settings">Settings</button>
+    <button class="nav-btn" data-tab="about">About</button>
+  </div>
+  <div id="home" class="tab active">
+    <h2>Fountain Scan</h2>
+    <div class="scan-status">
+      <p><strong>Current URL:</strong> <span id="url">Loading...</span></p>
+      <p><strong>Status:</strong> <span id="status" class="status-safe">Scanning...</span></p>
+      <div id="status-circle">
+        <p id="status-text">Analyzing...</p>
+      </div>
+      <p><strong>Issues Found:</strong> <span id="reason">None detected</span></p>
+    </div>
+    <div class="controls">
+      <label class="toggle-label">
+        <input type="checkbox" id="alertToggle" checked>
+        <span>Enable Alerts</span>
+      </label>
+      <label class="toggle-label">
+        <input type="checkbox" id="blockToggle">
+        <span>Enable Blocking</span>
+      </label>
+    </div>
+    <button id="rescanBtn" class="action-btn">Rescan Current Site</button>
+  </div>
+  <div id="whitelist" class="tab">
+    <h3>Trusted Domains</h3>
+    <div class="list-container">
+      <ul id="whitelistItems" class="domain-list"></ul>
+    </div>
+    <div class="input-group">
+      <input type="text" id="whitelistInput" placeholder="Add trusted domain (e.g., google.com)" maxlength="100">
+      <button id="addWhitelistBtn" class="action-btn">Add</button>
+    </div>
+  </div>
+  <div id="blacklist" class="tab">
+    <h3>Blocked Domains</h3>
+    <div class="list-container">
+      <ul id="blacklistItems" class="domain-list"></ul>
+    </div>
+    <div class="input-group">
+      <input type="text" id="blacklistInput" placeholder="Add blocked domain (e.g., suspicious-site.com)" maxlength="100">
+      <button id="addBlacklistBtn" class="action-btn">Add</button>
+    </div>
+  </div>
+  <div id="report" class="tab">
+    <h3>Report Suspicious Website</h3>
+    <div class="report-form">
+      <label for="reportUrl">URL to report:</label>
+      <input type="url" id="reportUrl" placeholder="https://suspicious-site.com" maxlength="500">
+     
+      <label for="reportReason">Reason for reporting:</label>
+      <textarea id="reportReason" placeholder="Describe why this site is suspicious (fake scholarships, phishing, etc.)" maxlength="1000"></textarea>
+     
+      <button id="reportBtn" class="action-btn">Submit Report</button>
+    </div>
+  </div>
+  <div id="settings" class="tab">
+    <h3>Settings</h3>
+    <div class="setting-group">
+      <label>Theme:</label>
+      <div class="radio-group">
+        <label class="radio-label">
+          <input type="radio" name="theme" value="light" checked>
+          <span>Light Mode</span>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="theme" value="dark">
+          <span>Dark Mode</span>
+        </label>
+      </div>
+    </div>
+   
+    <div class="setting-group">
+      <label for="systemLang">System Language:</label>
+      <input type="text" id="systemLang" placeholder="e.g. en-NG" maxlength="10">
+    </div>
+   
+    <div class="setting-group">
+      <label for="alertLang">Alert Language:</label>
+      <input type="text" id="alertLang" placeholder="e.g. en" maxlength="10">
+    </div>
+   
+    <button id="saveSettingsBtn" class="action-btn">Save Settings</button>
+  </div>
+  <div id="about" class="tab">
+    <h3>About Fountain Scan</h3>
+    <div class="about-content">
+      <p>This extension was created to protect Nigerian students from scholarship scams and fraudulent websites.</p>
+      <p>Features include:</p>
+      <ul>
+        <li>Real-time website scanning</li>
+        <li>Fraud pattern detection</li>
+        <li>Whitelist/blacklist management</li>
+        <li>Community reporting system</li>
+      </ul>
+      <p><strong>Version:</strong> 1.0.0</p>
+      <p><strong>Developer:</strong> FountainPDL </p>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
