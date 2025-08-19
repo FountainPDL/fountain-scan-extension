@@ -111,12 +111,18 @@
             transition: all 0.3s ease;
         }
 
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
         .btn-primary {
             background: #3498db;
             color: white;
         }
 
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background: #2980b9;
             transform: translateY(-2px);
         }
@@ -126,7 +132,7 @@
             color: white;
         }
 
-        .btn-success:hover {
+        .btn-success:hover:not(:disabled) {
             background: #229954;
             transform: translateY(-2px);
         }
@@ -136,7 +142,7 @@
             color: white;
         }
 
-        .btn-warning:hover {
+        .btn-warning:hover:not(:disabled) {
             background: #e67e22;
             transform: translateY(-2px);
         }
@@ -146,7 +152,7 @@
             color: white;
         }
 
-        .btn-danger:hover {
+        .btn-danger:hover:not(:disabled) {
             background: #c0392b;
             transform: translateY(-2px);
         }
@@ -164,6 +170,31 @@
             margin-top: 30px;
             font-size: 14px;
             color: #666;
+        }
+
+        .status-message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: 500;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid #17a2b8;
         }
 
         @media (max-width: 600px) {
@@ -208,20 +239,22 @@
             FountainScan blocked it to protect you from scams, malware, or fraudulent activities.
         </div>
 
+        <div id="status-container"></div>
+
         <div class="action-buttons">
-            <button class="btn btn-primary" onclick="goBack()">
+            <button class="btn btn-primary" id="go-back-btn">
                 ← Go Back
             </button>
             
-            <button class="btn btn-success" onclick="addToWhitelist()">
+            <button class="btn btn-success" id="whitelist-btn">
                 ✅ Trust This Site
             </button>
             
-            <button class="btn btn-warning" onclick="openSettings()">
+            <button class="btn btn-warning" id="settings-btn">
                 ⚙️ Extension Settings
             </button>
             
-            <button class="btn btn-danger" onclick="reportSite()">
+            <button class="btn btn-danger" id="report-btn">
                 🚨 Report False Positive
             </button>
         </div>
@@ -233,7 +266,10 @@
     </div>
 
     <script>
-        // Get URL parameters
+        let blockedUrl = '';
+        let blockedReason = '';
+
+        // Utility functions
         function getUrlParameter(name) {
             name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
             const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
@@ -241,92 +277,268 @@
             return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
         }
 
-        // Initialize page
-        document.addEventListener('DOMContentLoaded', function() {
-            const blockedUrl = getUrlParameter('url');
-            const blockedReason = getUrlParameter('reason') || 'Website flagged as potentially dangerous';
+        function showStatusMessage(message, type = 'info') {
+            const container = document.getElementById('status-container');
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status-message status-${type}`;
+            statusDiv.textContent = message;
+            
+            container.innerHTML = '';
+            container.appendChild(statusDiv);
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                if (statusDiv.parentNode) {
+                    statusDiv.remove();
+                }
+            }, 5000);
+        }
 
-            document.getElementById('blocked-url').textContent = blockedUrl || 'Unknown URL';
-            document.getElementById('blocked-reason').textContent = blockedReason;
-        });
-
-        // Navigation functions
-        function goBack() {
-            if (window.history.length > 1) {
-                window.history.back();
-            } else {
-                window.location.href = 'about:blank';
+        function setButtonLoading(buttonId, isLoading) {
+            const button = document.getElementById(buttonId);
+            if (button) {
+                button.disabled = isLoading;
+                if (isLoading) {
+                    button.dataset.originalText = button.textContent;
+                    button.textContent = 'Loading...';
+                } else {
+                    if (button.dataset.originalText) {
+                        button.textContent = button.dataset.originalText;
+                        delete button.dataset.originalText;
+                    }
+                }
             }
         }
 
-        function addToWhitelist() {
-            const blockedUrl = getUrlParameter('url');
-            if (!blockedUrl) return;
+        function isExtensionContext() {
+            return typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
+        }
 
+        function extractDomain(url) {
             try {
-                const domain = new URL(blockedUrl).hostname.replace(/^www\./, '');
-                
-                if (chrome.runtime) {
+                const urlObj = new URL(url);
+                return urlObj.hostname.replace(/^www\./, '');
+            } catch (error) {
+                console.error('Error extracting domain:', error);
+                return url;
+            }
+        }
+
+        // Button handlers
+        function handleGoBack() {
+            try {
+                if (window.history.length > 1) {
+                    window.history.back();
+                } else {
+                    // Fallback options
+                    if (window.opener) {
+                        window.close();
+                    } else {
+                        window.location.href = 'about:blank';
+                    }
+                }
+            } catch (error) {
+                console.error('Error going back:', error);
+                showStatusMessage('Unable to go back. Please use your browser\'s back button.', 'error');
+            }
+        }
+
+        function handleAddToWhitelist() {
+            if (!blockedUrl) {
+                showStatusMessage('No URL to whitelist', 'error');
+                return;
+            }
+
+            setButtonLoading('whitelist-btn', true);
+            
+            if (isExtensionContext()) {
+                try {
+                    const domain = extractDomain(blockedUrl);
+                    
                     chrome.runtime.sendMessage({
                         action: 'addToWhitelist',
                         domain: domain,
                         url: blockedUrl
                     }, function(response) {
+                        setButtonLoading('whitelist-btn', false);
+                        
+                        if (chrome.runtime.lastError) {
+                            console.error('Chrome runtime error:', chrome.runtime.lastError);
+                            showStatusMessage('Extension error. Please try using the extension popup.', 'error');
+                            return;
+                        }
+                        
                         if (response && response.success) {
-                            alert('Site added to whitelist. Redirecting...');
-                            window.location.href = blockedUrl;
+                            showStatusMessage('Site added to whitelist! Redirecting...', 'success');
+                            setTimeout(() => {
+                                window.location.href = blockedUrl;
+                            }, 2000);
                         } else {
-                            alert('Failed to add site to whitelist. Please use the extension popup.');
+                            showStatusMessage('Failed to add site to whitelist. Please use the extension popup.', 'error');
                         }
                     });
-                } else {
-                    alert('Please use the extension popup to add this site to your whitelist.');
+                } catch (error) {
+                    setButtonLoading('whitelist-btn', false);
+                    console.error('Error adding to whitelist:', error);
+                    showStatusMessage('Error processing request. Please use the extension popup.', 'error');
                 }
-            } catch (error) {
-                console.error('Error adding to whitelist:', error);
-                alert('Error processing request. Please use the extension popup.');
-            }
-        }
-
-        function openSettings() {
-            if (chrome.runtime) {
-                chrome.runtime.openOptionsPage();
             } else {
-                alert('Please click the Fountain Scan extension icon to access settings.');
+                setButtonLoading('whitelist-btn', false);
+                showStatusMessage('Extension not detected. Please use the extension popup to whitelist sites.', 'info');
             }
         }
 
-        function reportSite() {
-            const blockedUrl = getUrlParameter('url');
-            const reason = 'False positive - this site should not be blocked';
-            
-            if (chrome.runtime) {
-                chrome.runtime.sendMessage({
-                    action: 'reportFalsePositive',
-                    url: blockedUrl,
-                    reason: reason
-                }, function(response) {
-                    if (response && response.success) {
-                        alert('Thank you for your report! We will review this site.');
+        function handleOpenSettings() {
+            if (isExtensionContext()) {
+                try {
+                    if (chrome.runtime.openOptionsPage) {
+                        chrome.runtime.openOptionsPage();
+                        showStatusMessage('Opening extension settings...', 'info');
                     } else {
-                        alert('Report sent locally. Please use the extension popup to submit reports.');
+                        showStatusMessage('Please right-click the extension icon and select "Options"', 'info');
                     }
-                });
+                } catch (error) {
+                    console.error('Error opening settings:', error);
+                    showStatusMessage('Please click the Fountain Scan extension icon to access settings.', 'info');
+                }
             } else {
-                alert('Please use the extension popup to report false positives.');
+                showStatusMessage('Please click the Fountain Scan extension icon in your browser toolbar to access settings.', 'info');
             }
+        }
+
+        function handleReportSite() {
+            if (!blockedUrl) {
+                showStatusMessage('No URL to report', 'error');
+                return;
+            }
+
+            setButtonLoading('report-btn', true);
+            
+            if (isExtensionContext()) {
+                try {
+                    chrome.runtime.sendMessage({
+                        action: 'reportFalsePositive',
+                        url: blockedUrl,
+                        reason: 'User reported as false positive',
+                        timestamp: new Date().toISOString()
+                    }, function(response) {
+                        setButtonLoading('report-btn', false);
+                        
+                        if (chrome.runtime.lastError) {
+                            console.error('Chrome runtime error:', chrome.runtime.lastError);
+                            showStatusMessage('Extension error. Please try using the extension popup.', 'error');
+                            return;
+                        }
+                        
+                        if (response && response.success) {
+                            showStatusMessage('Thank you! Your report has been submitted for review.', 'success');
+                        } else {
+                            showStatusMessage('Report logged locally. Please use the extension popup to submit online reports.', 'info');
+                        }
+                    });
+                } catch (error) {
+                    setButtonLoading('report-btn', false);
+                    console.error('Error reporting site:', error);
+                    showStatusMessage('Error submitting report. Please use the extension popup.', 'error');
+                }
+            } else {
+                setButtonLoading('report-btn', false);
+                
+                // Fallback: log report locally
+                const reportData = {
+                    url: blockedUrl,
+                    reason: blockedReason,
+                    reportedAt: new Date().toISOString(),
+                    type: 'false_positive'
+                };
+                
+                console.log('False positive report (logged locally):', reportData);
+                showStatusMessage('Report logged. Please use the extension popup to submit online reports.', 'info');
+            }
+        }
+
+        // Initialize page
+        function initializePage() {
+            // Get URL parameters
+            blockedUrl = getUrlParameter('url') || '';
+            blockedReason = getUrlParameter('reason') || 'Website flagged as potentially dangerous';
+
+            // Update display elements
+            const urlElement = document.getElementById('blocked-url');
+            const reasonElement = document.getElementById('blocked-reason');
+            
+            if (urlElement) {
+                urlElement.textContent = blockedUrl || 'Unknown URL';
+            }
+            
+            if (reasonElement) {
+                reasonElement.textContent = blockedReason;
+            }
+
+            // Add event listeners to buttons
+            const goBackBtn = document.getElementById('go-back-btn');
+            const whitelistBtn = document.getElementById('whitelist-btn');
+            const settingsBtn = document.getElementById('settings-btn');
+            const reportBtn = document.getElementById('report-btn');
+
+            if (goBackBtn) {
+                goBackBtn.addEventListener('click', handleGoBack);
+            }
+            
+            if (whitelistBtn) {
+                whitelistBtn.addEventListener('click', handleAddToWhitelist);
+            }
+            
+            if (settingsBtn) {
+                settingsBtn.addEventListener('click', handleOpenSettings);
+            }
+            
+            if (reportBtn) {
+                reportBtn.addEventListener('click', handleReportSite);
+            }
+
+            console.log('FountainScan blocked page initialized:', {
+                url: blockedUrl,
+                reason: blockedReason,
+                extensionDetected: isExtensionContext()
+            });
         }
 
         // Handle messages from background script
-        if (chrome.runtime) {
+        if (isExtensionContext()) {
             chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
-                if (message.action === 'whitelistAdded') {
-                    const blockedUrl = getUrlParameter('url');
-                    if (blockedUrl) {
-                        window.location.href = blockedUrl;
-                    }
+                console.log('Received message:', message);
+                
+                switch (message.action) {
+                    case 'whitelistAdded':
+                        showStatusMessage('Site whitelisted! Redirecting...', 'success');
+                        if (blockedUrl) {
+                            setTimeout(() => {
+                                window.location.href = blockedUrl;
+                            }, 1500);
+                        }
+                        sendResponse({success: true});
+                        break;
+                        
+                    case 'reportReceived':
+                        showStatusMessage('Report received successfully!', 'success');
+                        sendResponse({success: true});
+                        break;
+                        
+                    default:
+                        sendResponse({success: false, error: 'Unknown action'});
                 }
             });
+        }
+
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', initializePage);
+
+        // Fallback initialization if DOMContentLoaded already fired
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializePage);
+        } else {
+            initializePage();
         }
     </script>
 </body>
