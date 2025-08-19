@@ -18,6 +18,21 @@ const FountainScan = {
     this.setupEventListeners();
     this.switchTab('home');
     this.scanCurrentSite();
+    // Initialize blocking system
+    this.initializeBlocking();
+  },
+
+  // NEW: Initialize blocking system
+  initializeBlocking() {
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      // Send current settings to background script
+      chrome.runtime.sendMessage({
+        action: 'updateSettings',
+        settings: this.settings,
+        blacklist: this.blacklist,
+        whitelist: this.whitelist
+      });
+    }
   },
 
   // Load settings from storage
@@ -28,6 +43,8 @@ const FountainScan = {
           if (result.settings) {
             this.settings = { ...this.settings, ...result.settings };
             this.applySettings();
+            // NEW: Update blocking when settings load
+            this.updateBlockingRules();
           }
         });
       } else {
@@ -51,6 +68,8 @@ const FountainScan = {
       } else {
         localStorage.setItem('fountainScanSettings', JSON.stringify(this.settings));
       }
+      // NEW: Update blocking rules when settings change
+      this.updateBlockingRules();
       this.showMessage('Settings saved successfully!', 'success');
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -66,6 +85,8 @@ const FountainScan = {
           this.whitelist = result.whitelist || [];
           this.blacklist = result.blacklist || [];
           this.renderLists();
+          // NEW: Update blocking rules when lists load
+          this.updateBlockingRules();
         });
       } else {
         // Fallback for testing
@@ -90,8 +111,24 @@ const FountainScan = {
         localStorage.setItem('fountainScanWhitelist', JSON.stringify(this.whitelist));
         localStorage.setItem('fountainScanBlacklist', JSON.stringify(this.blacklist));
       }
+      // NEW: Update blocking rules when lists change
+      this.updateBlockingRules();
     } catch (error) {
       console.error('Error saving lists:', error);
+    }
+  },
+
+  // NEW: Update blocking rules in background script
+  updateBlockingRules() {
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      chrome.runtime.sendMessage({
+        action: 'updateBlockingRules',
+        settings: this.settings,
+        blacklist: this.blacklist,
+        whitelist: this.whitelist
+      }).catch(error => {
+        console.log('Background script not ready:', error);
+      });
     }
   },
 
@@ -165,6 +202,8 @@ const FountainScan = {
     if (blockToggle) {
       blockToggle.addEventListener('change', (e) => {
         this.settings.blockingEnabled = e.target.checked;
+        // NEW: Update blocking immediately when toggle changes
+        this.updateBlockingRules();
       });
     }
 
@@ -398,7 +437,20 @@ const FountainScan = {
       // Update status circle and text
       this.updateStatusUI(scanResult, statusCircle, statusText);
       
-      // Show alert if needed
+      // NEW: Handle blocking for dangerous sites
+      if (scanResult.level === 'danger' && this.settings.blockingEnabled) {
+        // Check if site should be blocked
+        const urlObj = new URL(url);
+        const domain = urlObj.hostname.toLowerCase();
+        
+        // Don't block if whitelisted
+        if (!this.whitelist.some(d => this.domainMatches(domain, d.toLowerCase()))) {
+          this.handleDangerousSite(scanResult);
+          return; // Exit early if blocking
+        }
+      }
+      
+      // Show alert if needed (for non-blocked dangerous sites)
       if (scanResult.level === 'danger' && this.settings.alertsEnabled) {
         this.showAlert(scanResult);
       }
@@ -412,6 +464,89 @@ const FountainScan = {
       const statusCircle = document.getElementById('status-circle');
       if (statusText) statusText.textContent = 'Error';
       if (statusCircle) statusCircle.style.background = 'gray';
+    }
+  },
+
+  // NEW: Handle dangerous sites with blocking option
+  async handleDangerousSite(scanResult) {
+    if (this.settings.blockingEnabled) {
+      // Immediately notify background script to block
+      if (typeof chrome !== 'undefined' && chrome.runtime) {
+        chrome.runtime.sendMessage({
+          action: 'blockCurrentTab',
+          url: this.currentUrl,
+          reason: scanResult.issues.join(', ')
+        });
+      }
+      
+      // Show blocking message in popup
+      this.showBlockingMessage(scanResult);
+    } else {
+      // Just show alert if blocking is disabled
+      this.showAlert(scanResult);
+    }
+  },
+
+  // NEW: Show blocking message
+  showBlockingMessage(scanResult) {
+    const message = `🚫 WEBSITE BLOCKED\n\nThis website has been blocked for your safety.\n\nURL: ${this.currentUrl}\nRisk Level: ${scanResult.status}\nReasons: ${scanResult.issues.join(', ')}\n\nTo access this site, you can:\n1. Disable blocking in settings\n2. Add this domain to your whitelist\n3. Close this tab`;
+    
+    // Replace popup content with blocking message
+    const activeTab = document.querySelector('.tab.active');
+    if (activeTab) {
+      activeTab.innerHTML = `
+        <div style="text-align: center; padding: 20px; color: #d32f2f;">
+          <h2>🚫 Website Blocked</h2>
+          <p><strong>URL:</strong> ${this.currentUrl}</p>
+          <p><strong>Risk Level:</strong> ${scanResult.status}</p>
+          <p><strong>Reasons:</strong> ${scanResult.issues.join(', ')}</p>
+          <div style="margin-top: 20px;">
+            <button onclick="FountainScan.addCurrentToWhitelist()" style="margin: 5px; padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Add to Whitelist</button>
+            <button onclick="FountainScan.disableBlocking()" style="margin: 5px; padding: 8px 16px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer;">Disable Blocking</button>
+            <button onclick="window.close()" style="margin: 5px; padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">Close Tab</button>
+          </div>
+        </div>
+      `;
+    }
+  },
+
+  // NEW: Add current site to whitelist from blocking screen
+  async addCurrentToWhitelist() {
+    try {
+      const url = new URL(this.currentUrl);
+      const domain = url.hostname.toLowerCase().replace(/^www\./, '');
+      
+      if (!this.whitelist.some(d => d.toLowerCase() === domain)) {
+        this.whitelist.push(domain);
+        this.saveLists();
+        
+        // Reload the tab to unblock
+        if (typeof chrome !== 'undefined' && chrome.tabs) {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tab) {
+            chrome.tabs.reload(tab.id);
+            window.close(); // Close popup
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error adding to whitelist:', error);
+    }
+  },
+
+  // NEW: Disable blocking from blocking screen
+  disableBlocking() {
+    this.settings.blockingEnabled = false;
+    this.saveSettings();
+    
+    // Reload the tab
+    if (typeof chrome !== 'undefined' && chrome.tabs) {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]) {
+          chrome.tabs.reload(tabs[0].id);
+          window.close(); // Close popup
+        }
+      });
     }
   },
 
@@ -430,7 +565,7 @@ const FountainScan = {
         break;
       case 'danger':
         statusCircle.style.background = 'red';
-        statusText.textContent = 'Dangerous';
+        statusText.textContent = this.settings.blockingEnabled ? 'Blocked' : 'Dangerous';
         break;
       default:
         statusCircle.style.background = 'gray';

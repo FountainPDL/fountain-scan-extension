@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Blocked - FountainScan</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        .blocked-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 90%;
+            text-align: center;
+            color: #333;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .blocked-icon {
+            font-size: 80px;
+            color: #e74c3c;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .blocked-title {
+            font-size: 2.5em;
+            color: #e74c3c;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .blocked-subtitle {
+            font-size: 1.2em;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .blocked-info {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .blocked-info h3 {
+            color: #e74c3c;
+            margin-bottom: 10px;
+        }
+
+        .blocked-url {
+            word-break: break-all;
+            background: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #e74c3c;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+
+        .blocked-reason {
+            background: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #ffc107;
+            margin: 10px 0;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 30px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+            transform: translateY(-2px);
+        }
+
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #e67e22;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+        }
+
+        .protection-info {
+            background: #e8f5e8;
+            color: #2d5016;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #27ae60;
+        }
+
+        .footer {
+            margin-top: 30px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        @media (max-width: 600px) {
+            .blocked-container {
+                padding: 20px;
+                margin: 20px;
+            }
+            
+            .blocked-title {
+                font-size: 2em;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="blocked-container">
+        <div class="blocked-icon">🛡️</div>
+        <h1 class="blocked-title">Website Blocked</h1>
+        <p class="blocked-subtitle">FountainScan has blocked this website for your safety</p>
+
+        <div class="blocked-info">
+            <h3>🌐 Blocked Website:</h3>
+            <div class="blocked-url" id="blocked-url">Loading...</div>
+            
+            <h3>⚠️ Reason for Blocking:</h3>
+            <div class="blocked-reason" id="blocked-reason">Loading...</div>
+        </div>
+
+        <div class="protection-info">
+            <strong>🔒 You are protected!</strong><br>
+            This website has been identified as potentially harmful based on our security analysis. 
+            FountainScan blocked it to protect you from scams, malware, or fraudulent activities.
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn btn-primary" onclick="goBack()">
+                ← Go Back
+            </button>
+            
+            <button class="btn btn-success" onclick="addToWhitelist()">
+                ✅ Trust This Site
+            </button>
+            
+            <button class="btn btn-warning" onclick="openSettings()">
+                ⚙️ Extension Settings
+            </button>
+            
+            <button class="btn btn-danger" onclick="reportSite()">
+                🚨 Report False Positive
+            </button>
+        </div>
+
+        <div class="footer">
+            <p>Protected by <strong>FountainScan</strong></p>
+            <p>If you believe this is a false positive, you can add this site to your whitelist or report it.</p>
+        </div>
+    </div>
+
+    <script>
+        // Get URL parameters
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            const results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            const blockedUrl = getUrlParameter('url');
+            const blockedReason = getUrlParameter('reason') || 'Website flagged as potentially dangerous';
+
+            document.getElementById('blocked-url').textContent = blockedUrl || 'Unknown URL';
+            document.getElementById('blocked-reason').textContent = blockedReason;
+        });
+
+        // Navigation functions
+        function goBack() {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.href = 'about:blank';
+            }
+        }
+
+        function addToWhitelist() {
+            const blockedUrl = getUrlParameter('url');
+            if (!blockedUrl) return;
+
+            try {
+                const domain = new URL(blockedUrl).hostname.replace(/^www\./, '');
+                
+                if (chrome.runtime) {
+                    chrome.runtime.sendMessage({
+                        action: 'addToWhitelist',
+                        domain: domain,
+                        url: blockedUrl
+                    }, function(response) {
+                        if (response && response.success) {
+                            alert('Site added to whitelist. Redirecting...');
+                            window.location.href = blockedUrl;
+                        } else {
+                            alert('Failed to add site to whitelist. Please use the extension popup.');
+                        }
+                    });
+                } else {
+                    alert('Please use the extension popup to add this site to your whitelist.');
+                }
+            } catch (error) {
+                console.error('Error adding to whitelist:', error);
+                alert('Error processing request. Please use the extension popup.');
+            }
+        }
+
+        function openSettings() {
+            if (chrome.runtime) {
+                chrome.runtime.openOptionsPage();
+            } else {
+                alert('Please click the FountainScan extension icon to access settings.');
+            }
+        }
+
+        function reportSite() {
+            const blockedUrl = getUrlParameter('url');
+            const reason = 'False positive - this site should not be blocked';
+            
+            if (chrome.runtime) {
+                chrome.runtime.sendMessage({
+                    action: 'reportFalsePositive',
+                    url: blockedUrl,
+                    reason: reason
+                }, function(response) {
+                    if (response && response.success) {
+                        alert('Thank you for your report! We will review this site.');
+                    } else {
+                        alert('Report sent locally. Please use the extension popup to submit reports.');
+                    }
+                });
+            } else {
+                alert('Please use the extension popup to report false positives.');
+            }
+        }
+
+        // Handle messages from background script
+        if (chrome.runtime) {
+            chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
+                if (message.action === 'whitelistAdded') {
+                    const blockedUrl = getUrlParameter('url');
+                    if (blockedUrl) {
+                        window.location.href = blockedUrl;
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

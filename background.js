@@ -392,3 +392,295 @@ chrome.runtime.onInstalled.addListener(async () => {
     });
   }
 });
+
+// background.js - Handles the actual website blocking
+
+let settings = {
+  blockingEnabled: false,
+  alertsEnabled: true
+};
+let blacklist = [];
+let whitelist = [];
+
+// Initialize background script
+chrome.runtime.onInstalled.addListener(() => {
+  console.log('FountainScan extension installed');
+  loadStoredData();
+});
+
+// Load stored settings and lists
+async function loadStoredData() {
+  try {
+    const result = await chrome.storage.local.get(['settings', 'blacklist', 'whitelist']);
+    if (result.settings) settings = { ...settings, ...result.settings };
+    if (result.blacklist) blacklist = result.blacklist;
+    if (result.whitelist) whitelist = result.whitelist;
+    
+    updateBlockingRules();
+  } catch (error) {
+    console.error('Error loading stored data:', error);
+  }
+}
+
+// Listen for messages from popup
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  switch (message.action) {
+    case 'updateSettings':
+      settings = message.settings;
+      blacklist = message.blacklist || [];
+      whitelist = message.whitelist || [];
+      updateBlockingRules();
+      break;
+      
+    case 'updateBlockingRules':
+      settings = message.settings;
+      blacklist = message.blacklist || [];
+      whitelist = message.whitelist || [];
+      updateBlockingRules();
+      break;
+      
+    case 'blockCurrentTab':
+      handleTabBlocking(message.url, message.reason);
+      break;
+  }
+});
+
+// Enhanced domain matching function
+function domainMatches(currentDomain, listDomain) {
+  const cleanDomain = listDomain.replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase();
+  const cleanCurrent = currentDomain.replace(/^(www\.)?/, '').toLowerCase();
+  
+  // Exact match
+  if (cleanCurrent === cleanDomain) return true;
+  
+  // Subdomain match
+  if (cleanCurrent.endsWith('.' + cleanDomain)) return true;
+  
+  // Wildcard support
+  if (cleanDomain.startsWith('*.')) {
+    const baseDomain = cleanDomain.substring(2);
+    return cleanCurrent.endsWith('.' + baseDomain) || cleanCurrent === baseDomain;
+  }
+  
+  return false;
+}
+
+// Check if domain should be blocked
+function shouldBlockDomain(domain) {
+  if (!settings.blockingEnabled) return false;
+  
+  // Don't block if whitelisted
+  if (whitelist.some(d => domainMatches(domain, d.toLowerCase()))) {
+    return false;
+  }
+  
+  // Block if blacklisted
+  if (blacklist.some(d => domainMatches(domain, d.toLowerCase()))) {
+    return true;
+  }
+  
+  return false;
+}
+
+// Update declarative net request rules for blocking
+async function updateBlockingRules() {
+  if (!chrome.declarativeNetRequest) {
+    console.log('Declarative Net Request API not available');
+    return;
+  }
+
+  try {
+    // Clear existing rules
+    const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+    const ruleIdsToRemove = existingRules.map(rule => rule.id);
+    
+    if (ruleIdsToRemove.length > 0) {
+      await chrome.declarativeNetRequest.updateDynamicRules({
+        removeRuleIds: ruleIdsToRemove
+      });
+    }
+
+    // Add new blocking rules if blocking is enabled
+    if (settings.blockingEnabled && blacklist.length > 0) {
+      const newRules = [];
+      
+      blacklist.forEach((domain, index) => {
+        // Skip if domain is whitelisted
+        if (whitelist.some(d => domainMatches(domain, d.toLowerCase()))) {
+          return;
+        }
+        
+        const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase();
+        let urlFilter;
+        
+        if (cleanDomain.startsWith('*.')) {
+          // Wildcard domain - match subdomains
+          const baseDomain = cleanDomain.substring(2);
+          urlFilter = `*://*.${baseDomain}/*`;
+        } else {
+          // Exact domain match
+          urlFilter = `*://${cleanDomain}/*`;
+        }
+        
+        newRules.push({
+          id: index + 1,
+          priority: 1,
+          action: {
+            type: 'redirect',
+            redirect: {
+              extensionPath: '/blocked.html?url=' + encodeURIComponent(domain)
+            }
+          },
+          condition: {
+            urlFilter: urlFilter,
+            resourceTypes: ['main_frame']
+          }
+        });
+        
+        // Also block with www
+        newRules.push({
+          id: index + 1000,
+          priority: 1,
+          action: {
+            type: 'redirect',
+            redirect: {
+              extensionPath: '/blocked.html?url=' + encodeURIComponent(domain)
+            }
+          },
+          condition: {
+            urlFilter: `*://www.${cleanDomain}/*`,
+            resourceTypes: ['main_frame']
+          }
+        });
+      });
+      
+      if (newRules.length > 0) {
+        await chrome.declarativeNetRequest.updateDynamicRules({
+          addRules: newRules
+        });
+      }
+    }
+    
+    console.log('Blocking rules updated successfully');
+  } catch (error) {
+    console.error('Error updating blocking rules:', error);
+  }
+}
+
+// Handle immediate tab blocking (for dangerous sites detected in real-time)
+async function handleTabBlocking(url, reason) {
+  try {
+    const urlObj = new URL(url);
+    const domain = urlObj.hostname.toLowerCase();
+    
+    // Add to blacklist if not already there
+    if (!blacklist.some(d => domainMatches(domain, d.toLowerCase()))) {
+      blacklist.push(domain);
+      await chrome.storage.local.set({ blacklist });
+    }
+    
+    // Update blocking rules
+    await updateBlockingRules();
+    
+    // Find and redirect current tab
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tabs[0]) {
+      const blockingUrl = chrome.runtime.getURL('blocked.html') + 
+        `?url=${encodeURIComponent(url)}&reason=${encodeURIComponent(reason)}`;
+      
+      await chrome.tabs.update(tabs[0].id, { url: blockingUrl });
+    }
+    
+  } catch (error) {
+    console.error('Error blocking tab:', error);
+  }
+}
+
+// Listen for tab updates to check for dangerous sites
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'loading' && tab.url && settings.blockingEnabled) {
+    try {
+      const urlObj = new URL(tab.url);
+      const domain = urlObj.hostname.toLowerCase();
+      
+      if (shouldBlockDomain(domain)) {
+        const blockingUrl = chrome.runtime.getURL('blocked.html') + 
+          `?url=${encodeURIComponent(tab.url)}&reason=Domain is blacklisted`;
+        
+        await chrome.tabs.update(tabId, { url: blockingUrl });
+      }
+    } catch (error) {
+      // Invalid URL or other error - ignore
+    }
+  }
+});
+
+// Scan URL for suspicious patterns (simplified version)
+function scanUrl(url) {
+  const suspiciousPatterns = [
+    'free-scholarship', 'guaranteed-scholarship', 'instant-scholarship',
+    'scholarship-winner', 'urgent-scholarship', 'easy-cash', 'instant-money',
+    'guaranteed-loan', 'quick-loan', 'work-from-home', 'get-rich-quick',
+    'nin', 'bvn', 'Bank-Verification-Number', 'payment-verification'
+  ];
+  
+  const lowerUrl = url.toLowerCase();
+  let score = 0;
+  const foundPatterns = [];
+  
+  suspiciousPatterns.forEach(pattern => {
+    if (lowerUrl.includes(pattern)) {
+      score += 2;
+      foundPatterns.push(pattern);
+    }
+  });
+  
+  return {
+    score,
+    foundPatterns,
+    isDangerous: score >= 4
+  };
+}
+
+// Listen for web request to scan for suspicious content
+chrome.webRequest.onBeforeRequest.addListener(
+  (details) => {
+    if (settings.blockingEnabled && details.type === 'main_frame') {
+      try {
+        const urlObj = new URL(details.url);
+        const domain = urlObj.hostname.toLowerCase();
+        
+        // Skip if whitelisted
+        if (whitelist.some(d => domainMatches(domain, d.toLowerCase()))) {
+          return {};
+        }
+        
+        // Quick scan for dangerous patterns
+        const scanResult = scanUrl(details.url);
+        
+        if (scanResult.isDangerous) {
+          // Add to blacklist and block
+          if (!blacklist.some(d => domainMatches(domain, d.toLowerCase()))) {
+            blacklist.push(domain);
+            chrome.storage.local.set({ blacklist });
+            updateBlockingRules();
+          }
+          
+          const blockingUrl = chrome.runtime.getURL('blocked.html') + 
+            `?url=${encodeURIComponent(details.url)}&reason=Suspicious patterns detected: ${scanResult.foundPatterns.join(', ')}`;
+          
+          return { redirectUrl: blockingUrl };
+        }
+      } catch (error) {
+        console.error('Error in web request listener:', error);
+      }
+    }
+    
+    return {};
+  },
+  { urls: ['<all_urls>'] },
+  ['blocking']
+);
+
+// Initialize on startup
+loadStoredData();
