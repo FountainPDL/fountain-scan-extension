@@ -1006,7 +1006,7 @@ const FountainScan = {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          site_url: url,
+          domain_url: url,
           detection_score: 80, // High score for user-reported sites
           keywords: reason.split(' ').slice(0, 10), // Extract keywords from reason
           source: 'user_report'

@@ -17,7 +17,7 @@ async function isUrlBlacklisted(url) {
   const { data, error } = await supabase
     .from("blacklisted_sites")
     .select("id")
-    .eq("site_url", url)
+    .eq("domain_url", url)
     .single();
   
   return !error && data;
@@ -29,7 +29,7 @@ async function addToBlacklist(url, reason, reporterEmail) {
     const { data, error } = await supabase
       .from("blacklisted_sites")
       .insert([{
-        site_url: url,
+        domain_url: url,
         reason: reason,
         added_by: reporterEmail || 'auto-report-system',
         date_added: new Date().toISOString()
@@ -113,9 +113,9 @@ app.get("/blacklist", async (req, res) => {
 
 // Route: Log warning
 app.post("/logs", async (req, res) => {
-  const { site_url, detection_score, keywords } = req.body;
+  const { domain_url, detection_score, keywords } = req.body;
   const { error } = await supabase.from("warning_logs").insert([
-    { site_url, detection_score, keywords, time_detected: new Date().toISOString() }
+    { domain_url, detection_score, keywords, time_detected: new Date().toISOString() }
   ]);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ success: true });
