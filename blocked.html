@@ -80,7 +80,7 @@
             font-family: monospace;
         }
 
-        .blocked-reason {
+        .blocked-reason_flagged {
             background: #fff3cd;
             color: #856404;
             padding: 10px;
@@ -229,8 +229,8 @@
             <h3>🌐 Blocked Website:</h3>
             <div class="blocked-url" id="blocked-url">Loading...</div>
             
-            <h3>⚠️ Reason for Blocking:</h3>
-            <div class="blocked-reason" id="blocked-reason">Loading...</div>
+            <h3>⚠️ reason_flagged for Blocking:</h3>
+            <div class="blocked-reason_flagged" id="blocked-reason_flagged">Loading...</div>
         </div>
 
         <div class="protection-info">
@@ -267,7 +267,7 @@
 
     <script>
         let blockedUrl = '';
-        let blockedReason = '';
+        let blockedreason_flagged = '';
 
         // Utility functions
         function getUrlParameter(name) {
@@ -419,7 +419,7 @@
                     chrome.runtime.sendMessage({
                         action: 'reportFalsePositive',
                         url: blockedUrl,
-                        reason: 'User reported as false positive',
+                        reason_flagged: 'User reported as false positive',
                         timestamp: new Date().toISOString()
                     }, function(response) {
                         setButtonLoading('report-btn', false);
@@ -447,7 +447,7 @@
                 // Fallback: log report locally
                 const reportData = {
                     url: blockedUrl,
-                    reason: blockedReason,
+                    reason_flagged: blockedreason_flagged,
                     reportedAt: new Date().toISOString(),
                     type: 'false_positive'
                 };
@@ -461,18 +461,18 @@
         function initializePage() {
             // Get URL parameters
             blockedUrl = getUrlParameter('url') || '';
-            blockedReason = getUrlParameter('reason') || 'Website flagged as potentially dangerous';
+            blockedreason_flagged = getUrlParameter('reason_flagged') || 'Website flagged as potentially dangerous';
 
             // Update display elements
             const urlElement = document.getElementById('blocked-url');
-            const reasonElement = document.getElementById('blocked-reason');
+            const reason_flaggedElement = document.getElementById('blocked-reason_flagged');
             
             if (urlElement) {
                 urlElement.textContent = blockedUrl || 'Unknown URL';
             }
             
-            if (reasonElement) {
-                reasonElement.textContent = blockedReason;
+            if (reason_flaggedElement) {
+                reason_flaggedElement.textContent = blockedreason_flagged;
             }
 
             // Add event listeners to buttons
@@ -499,7 +499,7 @@
 
             console.log('FountainScan blocked page initialized:', {
                 url: blockedUrl,
-                reason: blockedReason,
+                reason_flagged: blockedreason_flagged,
                 extensionDetected: isExtensionContext()
             });
         }

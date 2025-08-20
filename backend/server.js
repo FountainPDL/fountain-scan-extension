@@ -24,13 +24,13 @@ async function isUrlBlacklisted(url) {
 }
 
 // Helper function to add URL to blacklist
-async function addToBlacklist(url, reason, reporterEmail) {
+async function addToBlacklist(url, reason_flagged, reporterEmail) {
   try {
     const { data, error } = await supabase
       .from("blacklisted_sites")
       .insert([{
         domain_url: url,
-        reason: reason,
+        reason_flagged: reason_flagged,
         added_by: reporterEmail || 'auto-report-system',
         date_added: new Date().toISOString()
       }]);
@@ -50,15 +50,15 @@ async function addToBlacklist(url, reason, reporterEmail) {
 
 // Route: Add report (now with auto-blacklisting)
 app.post("/report", async (req, res) => {
-  const { url, reason, email } = req.body;
+  const { url, reason_flagged, email } = req.body;
   
   try {
     // Step 1: Add the report to user_reports table
     const { data: reportData, error: reportError } = await supabase
       .from("user_reports")
       .insert([{
-        reported_url: url,
-        report_reason: reason,
+        domain_url: url,
+        reason_flagged: reason_flagged,
         user_email: email
       }]);
     
@@ -73,7 +73,7 @@ app.post("/report", async (req, res) => {
     
     if (!alreadyBlacklisted) {
       // Step 3: Auto-add to blacklist if not already there
-      blacklistResult = await addToBlacklist(url, reason, email);
+      blacklistResult = await addToBlacklist(url, reason_flagged, email);
       
       if (!blacklistResult.success) {
         console.warn(`Failed to auto-blacklist ${url}:`, blacklistResult.error);

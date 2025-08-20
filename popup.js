@@ -410,7 +410,7 @@ const FountainScan = {
       // Update UI elements
       const urlElement = document.getElementById('url');
       const statusElement = document.getElementById('status');
-      const reasonElement = document.getElementById('reason');
+      const reason_flaggedElement = document.getElementById('reason_flagged');
       const statusCircle = document.getElementById('status-circle');
       const statusText = document.getElementById('status-text');
       
@@ -429,8 +429,8 @@ const FountainScan = {
         statusElement.className = `status-${scanResult.level}`;
       }
       
-      if (reasonElement) {
-        reasonElement.textContent = scanResult.issues.length > 0 ? 
+      if (reason_flaggedElement) {
+        reason_flaggedElement.textContent = scanResult.issues.length > 0 ? 
           scanResult.issues.join(', ') : 'No issues detected';
       }
       
@@ -475,7 +475,7 @@ const FountainScan = {
         chrome.runtime.sendMessage({
           action: 'blockCurrentTab',
           url: this.currentUrl,
-          reason: scanResult.issues.join(', ')
+          reason_flagged: scanResult.issues.join(', ')
         });
       }
       
@@ -489,7 +489,7 @@ const FountainScan = {
 
   // NEW: Show blocking message
   showBlockingMessage(scanResult) {
-    const message = `🚫 WEBSITE BLOCKED\n\nThis website has been blocked for your safety.\n\nURL: ${this.currentUrl}\nRisk Level: ${scanResult.status}\nReasons: ${scanResult.issues.join(', ')}\n\nTo access this site, you can:\n1. Disable blocking in settings\n2. Add this domain to your whitelist\n3. Close this tab`;
+    const message = `🚫 WEBSITE BLOCKED\n\nThis website has been blocked for your safety.\n\nURL: ${this.currentUrl}\nRisk Level: ${scanResult.status}\nreason_flaggeds: ${scanResult.issues.join(', ')}\n\nTo access this site, you can:\n1. Disable blocking in settings\n2. Add this domain to your whitelist\n3. Close this tab`;
     
     // Replace popup content with blocking message
     const activeTab = document.querySelector('.tab.active');
@@ -499,7 +499,7 @@ const FountainScan = {
           <h2>🚫 Website Blocked</h2>
           <p><strong>URL:</strong> ${this.currentUrl}</p>
           <p><strong>Risk Level:</strong> ${scanResult.status}</p>
-          <p><strong>Reasons:</strong> ${scanResult.issues.join(', ')}</p>
+          <p><strong>reason_flaggeds:</strong> ${scanResult.issues.join(', ')}</p>
           <div style="margin-top: 20px;">
             <button onclick="FountainScan.addCurrentToWhitelist()" style="margin: 5px; padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Add to Whitelist</button>
             <button onclick="FountainScan.disableBlocking()" style="margin: 5px; padding: 8px 16px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer;">Disable Blocking</button>
@@ -921,18 +921,18 @@ const FountainScan = {
   // Report suspicious site
   async reportSite() {
     const urlInput = document.getElementById('reportUrl');
-    const reasonInput = document.getElementById('reportReason');
+    const reason_flaggedInput = document.getElementById('reportreason_flagged');
     const reportBtn = document.getElementById('reportBtn');
     
     const url = urlInput?.value.trim() || '';
-    const reason = reasonInput?.value.trim() || '';
+    const reason_flagged = reason_flaggedInput?.value.trim() || '';
     
     if (!url) {
       this.showMessage('Please enter a URL to report', 'error');
       return;
     }
-    if (!reason) {
-      this.showMessage('Please provide a reason for reporting', 'error');
+    if (!reason_flagged) {
+      this.showMessage('Please provide a reason_flagged for reporting', 'error');
       return;
     }
     if (!this.isValidUrl(url)) {
@@ -955,7 +955,7 @@ const FountainScan = {
         },
         body: JSON.stringify({
           url: url,
-          reason: reason,
+          reason_flagged: reason_flagged,
           email: null, // Optional: add email field to form if needed
           timestamp: new Date().toISOString()
         })
@@ -966,12 +966,12 @@ const FountainScan = {
       if (response.ok && result.success) {
         // Clear form on success
         urlInput.value = '';
-        reasonInput.value = '';
+        reason_flaggedInput.value = '';
         
         this.showMessage('Report submitted successfully! Thank you for helping keep users safe.', 'success');
         
         // Also log the warning to track patterns
-        await this.logWarning(url, reason);
+        await this.logWarning(url, reason_flagged);
         
       } else {
         throw new Error(result.error || 'Failed to submit report');
@@ -984,7 +984,7 @@ const FountainScan = {
       // Fallback: log locally for debugging
       console.log('Report (failed to submit):', { 
         url, 
-        reason, 
+        reason_flagged, 
         timestamp: new Date().toISOString(),
         error: error.message 
       });
@@ -998,7 +998,7 @@ const FountainScan = {
   },
 
   // Log warning to backend for pattern analysis
-  async logWarning(url, reason) {
+  async logWarning(url, reason_flagged) {
     try {
       await fetch('http://localhost:5000/logs', {
         method: 'POST',
@@ -1008,7 +1008,7 @@ const FountainScan = {
         body: JSON.stringify({
           domain_url: url,
           detection_score: 80, // High score for user-reported sites
-          keywords: reason.split(' ').slice(0, 10), // Extract keywords from reason
+          keywords: reason_flagged.split(' ').slice(0, 10), // Extract keywords from reason_flagged
           source: 'user_report'
         })
       });

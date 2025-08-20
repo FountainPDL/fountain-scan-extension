@@ -6,10 +6,10 @@ const router = express.Router();
 
 // Add domain to blacklist
 router.post("/", async (req, res) => {
-  const { domain, reason } = req.body;
+  const { domain, reason_flagged } = req.body;
 
   const { error } = await supabase.from("blacklisted_sites").insert([
-    { domain, reason, timestamp: new Date() }
+    { domain, reason_flagged, timestamp: new Date() }
   ]);
 
   if (error) return res.status(400).json({ error: error.message });

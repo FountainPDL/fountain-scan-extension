@@ -6,13 +6,13 @@ const router = express.Router();
 
 // Add new report
 router.post("/", async (req, res) => {
-  const { user_email, reported_url, report_reason } = req.body;
+  const { user_email, reported_url, reason_flagged } = req.body;
 
   const { error } = await supabase.from("user_reports").insert([
     {
       user_email,
       reported_url,
-      report_reason,
+      reason_flagged,
       timestamp: new Date()
     }
   ]);

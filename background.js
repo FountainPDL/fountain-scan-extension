@@ -393,7 +393,7 @@ async function updateBlockingRules() {
   }
 }
 
-async function handleTabBlocking(url, reason) {
+async function handleTabBlocking(url, reason_flagged) {
   try {
     const urlObj = new URL(url);
     const domain = urlObj.hostname.toLowerCase();
@@ -410,7 +410,7 @@ async function handleTabBlocking(url, reason) {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tabs[0]) {
       const blockingUrl = chrome.runtime.getURL('blocked.html') + 
-        `?url=${encodeURIComponent(url)}&reason=${encodeURIComponent(reason)}`;
+        `?url=${encodeURIComponent(url)}&reason_flagged=${encodeURIComponent(reason_flagged)}`;
       
       await chrome.tabs.update(tabs[0].id, { url: blockingUrl });
     }
@@ -497,9 +497,9 @@ async function handleAddToWhitelist(domain, originalUrl) {
   }
 }
 
-async function handleFalsePositiveReport(url, reason) {
+async function handleFalsePositiveReport(url, reason_flagged) {
   try {
-    console.log('False positive report:', { url, reason, timestamp: new Date().toISOString() });
+    console.log('False positive report:', { url, reason_flagged, timestamp: new Date().toISOString() });
     // Here you could send to your backend API
     return true;
   } catch (error) {
@@ -537,7 +537,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         break;
         
       case 'blockCurrentTab':
-        await handleTabBlocking(message.url, message.reason);
+        await handleTabBlocking(message.url, message.reason_flagged);
         break;
         
       case 'addToWhitelist':
@@ -546,7 +546,7 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         break;
         
       case 'reportFalsePositive':
-        const reported = await handleFalsePositiveReport(message.url, message.reason);
+        const reported = await handleFalsePositiveReport(message.url, message.reason_flagged);
         sendResponse({ success: reported });
         break;
         
@@ -580,7 +580,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       
       if (shouldBlockDomain(domain)) {
         const blockingUrl = chrome.runtime.getURL('blocked.html') + 
-          `?url=${encodeURIComponent(tab.url)}&reason=Domain is blacklisted`;
+          `?url=${encodeURIComponent(tab.url)}&reason_flagged=Domain is blacklisted`;
         
         await chrome.tabs.update(tabId, { url: blockingUrl });
       }
@@ -612,7 +612,7 @@ chrome.webRequest.onBeforeRequest.addListener(
           }
           
           const blockingUrl = chrome.runtime.getURL('blocked.html') + 
-            `?url=${encodeURIComponent(details.url)}&reason=Suspicious patterns detected: ${scanResult.foundPatterns.join(', ')}`;
+            `?url=${encodeURIComponent(details.url)}&reason_flagged=Suspicious patterns detected: ${scanResult.foundPatterns.join(', ')}`;
           
           return { redirectUrl: blockingUrl };
         }
