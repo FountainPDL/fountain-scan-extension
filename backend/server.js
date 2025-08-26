@@ -131,7 +131,7 @@ app.get("/", (req, res) => res.send("Fountain Scan Backend Running"));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () =>
-  console.log(`🚀 Fountain Scan backend running at http://localhost:${PORT}`)
+  console.log(`🚀 Fountain Scan backend running at https://backend-uwk4.onrender.com${PORT}`)
 );
 
 export default app;

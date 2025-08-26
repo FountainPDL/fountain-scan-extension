@@ -948,7 +948,7 @@ const FountainScan = {
     
     try {
       // Send report to backend
-      const response = await fetch('http://localhost:5000/report', {
+      const response = await fetch('https://backend-uwk4.onrender.com/report', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1000,7 +1000,7 @@ const FountainScan = {
   // Log warning to backend for pattern analysis
   async logWarning(url, reason_flagged) {
     try {
-      await fetch('http://localhost:5000/logs', {
+      await fetch('https://backend-uwk4.onrender.com/logs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
