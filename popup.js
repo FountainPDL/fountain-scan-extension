@@ -1,3 +1,4 @@
+//popup.js
 // Extension state management
 const FountainScan = {
   currentUrl: '',
@@ -22,7 +23,7 @@ const FountainScan = {
     this.initializeBlocking();
   },
 
-  // NEW: Initialize blocking system
+  // Initialize blocking system
   initializeBlocking() {
     if (typeof chrome !== 'undefined' && chrome.runtime) {
       // Send current settings to background script
@@ -43,7 +44,7 @@ const FountainScan = {
           if (result.settings) {
             this.settings = { ...this.settings, ...result.settings };
             this.applySettings();
-            // NEW: Update blocking when settings load
+            // Update blocking when settings load
             this.updateBlockingRules();
           }
         });
@@ -68,7 +69,7 @@ const FountainScan = {
       } else {
         localStorage.setItem('fountainScanSettings', JSON.stringify(this.settings));
       }
-      // NEW: Update blocking rules when settings change
+      // Update blocking rules when settings change
       this.updateBlockingRules();
       this.showMessage('Settings saved successfully!', 'success');
     } catch (error) {
@@ -85,7 +86,7 @@ const FountainScan = {
           this.whitelist = result.whitelist || [];
           this.blacklist = result.blacklist || [];
           this.renderLists();
-          // NEW: Update blocking rules when lists load
+          // Update blocking rules when lists load
           this.updateBlockingRules();
         });
       } else {
@@ -111,14 +112,14 @@ const FountainScan = {
         localStorage.setItem('fountainScanWhitelist', JSON.stringify(this.whitelist));
         localStorage.setItem('fountainScanBlacklist', JSON.stringify(this.blacklist));
       }
-      // NEW: Update blocking rules when lists change
+      // Update blocking rules when lists change
       this.updateBlockingRules();
     } catch (error) {
       console.error('Error saving lists:', error);
     }
   },
 
-  // NEW: Update blocking rules in background script
+  // Update blocking rules in background script
   updateBlockingRules() {
     if (typeof chrome !== 'undefined' && chrome.runtime) {
       chrome.runtime.sendMessage({
@@ -202,7 +203,7 @@ const FountainScan = {
     if (blockToggle) {
       blockToggle.addEventListener('change', (e) => {
         this.settings.blockingEnabled = e.target.checked;
-        // NEW: Update blocking immediately when toggle changes
+        // Update blocking immediately when toggle changes
         this.updateBlockingRules();
       });
     }
@@ -210,6 +211,130 @@ const FountainScan = {
     // Input validation
     document.querySelectorAll('input[type="text"], input[type="url"]').forEach(input => {
       input.addEventListener('input', this.validateInput.bind(this));
+    });
+
+    // Listen for messages from blocked page
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        this.handleMessage(message, sender, sendResponse);
+        return true; // Keep message channel open
+      });
+    }
+  },
+
+  // Handle messages from blocked page and background script
+  handleMessage(message, sender, sendResponse) {
+    switch (message.action) {
+      case 'addToWhitelist':
+        this.handleWhitelistRequest(message, sendResponse);
+        break;
+      case 'reportFalsePositive':
+        this.handleReportRequest(message, sendResponse);
+        break;
+      case 'getBlockInfo':
+        this.handleBlockInfoRequest(sendResponse);
+        break;
+      default:
+        sendResponse({ success: false, error: 'Unknown action' });
+    }
+  },
+
+  // Handle whitelist request from blocked page
+  async handleWhitelistRequest(message, sendResponse) {
+    try {
+      const domain = message.domain;
+      if (!domain) {
+        sendResponse({ success: false, error: 'No domain provided' });
+        return;
+      }
+
+      // Validate domain
+      if (!this.isValidDomain(domain)) {
+        sendResponse({ success: false, error: 'Invalid domain format' });
+        return;
+      }
+
+      // Add to whitelist if not already present
+      if (!this.whitelist.some(d => d.toLowerCase() === domain.toLowerCase())) {
+        this.whitelist.push(domain);
+        this.saveLists();
+        this.renderLists();
+        
+        // Notify background script to unblock
+        chrome.runtime.sendMessage({
+          action: 'unblockDomain',
+          domain: domain
+        });
+
+        sendResponse({ success: true, message: 'Domain added to whitelist' });
+      } else {
+        sendResponse({ success: false, error: 'Domain already in whitelist' });
+      }
+    } catch (error) {
+      console.error('Error handling whitelist request:', error);
+      sendResponse({ success: false, error: error.message });
+    }
+  },
+
+  // Handle report request from blocked page
+  async handleReportRequest(message, sendResponse) {
+    try {
+      const { url, reason_flagged, timestamp } = message;
+      
+      // Submit report to backend
+      const response = await fetch('https://backend-uwk4.onrender.com/report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: url,
+          reason_flagged: reason_flagged || 'Reported as false positive',
+          email: null,
+          timestamp: timestamp || new Date().toISOString(),
+          type: 'false_positive'
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        sendResponse({ success: true, message: 'Report submitted successfully' });
+      } else {
+        throw new Error(result.error || 'Failed to submit report');
+      }
+      
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      
+      // Log locally as fallback
+      console.log('Report (logged locally):', {
+        url: message.url,
+        reason_flagged: message.reason_flagged,
+        timestamp: message.timestamp || new Date().toISOString(),
+        type: 'false_positive',
+        error: error.message
+      });
+      
+      sendResponse({ 
+        success: false, 
+        error: 'Report logged locally due to network error',
+        logged: true 
+      });
+    }
+  },
+
+  // Handle block info request from blocked page
+  handleBlockInfoRequest(sendResponse) {
+    // Get the most recent block info from storage or current state
+    chrome.storage.local.get(['lastBlockedSite'], (result) => {
+      const blockInfo = result.lastBlockedSite || {
+        url: this.currentUrl || '',
+        reason_flagged: 'Website flagged as potentially dangerous',
+        riskLevel: 'High Risk',
+        timestamp: new Date().toISOString()
+      };
+      sendResponse(blockInfo);
     });
   },
 
@@ -437,7 +562,7 @@ const FountainScan = {
       // Update status circle and text
       this.updateStatusUI(scanResult, statusCircle, statusText);
       
-      // NEW: Handle blocking for dangerous sites
+      // Handle blocking for dangerous sites
       if (scanResult.level === 'danger' && this.settings.blockingEnabled) {
         // Check if site should be blocked
         const urlObj = new URL(url);
@@ -445,6 +570,14 @@ const FountainScan = {
         
         // Don't block if whitelisted
         if (!this.whitelist.some(d => this.domainMatches(domain, d.toLowerCase()))) {
+          // Store block info for blocked page
+          await this.storeBlockInfo({
+            url: url,
+            reason_flagged: scanResult.issues.join(', '),
+            riskLevel: scanResult.status,
+            timestamp: new Date().toISOString()
+          });
+          
           this.handleDangerousSite(scanResult);
           return; // Exit early if blocking
         }
@@ -467,7 +600,14 @@ const FountainScan = {
     }
   },
 
-  // NEW: Handle dangerous sites with blocking option
+  // Store block info for blocked page access
+  async storeBlockInfo(blockInfo) {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.set({ lastBlockedSite: blockInfo });
+    }
+  },
+
+  // Handle dangerous sites with blocking option
   async handleDangerousSite(scanResult) {
     if (this.settings.blockingEnabled) {
       // Immediately notify background script to block
@@ -487,10 +627,8 @@ const FountainScan = {
     }
   },
 
-  // NEW: Show blocking message
+  // Show blocking message
   showBlockingMessage(scanResult) {
-    const message = `🚫 WEBSITE BLOCKED\n\nThis website has been blocked for your safety.\n\nURL: ${this.currentUrl}\nRisk Level: ${scanResult.status}\nreason_flaggeds: ${scanResult.issues.join(', ')}\n\nTo access this site, you can:\n1. Disable blocking in settings\n2. Add this domain to your whitelist\n3. Close this tab`;
-    
     // Replace popup content with blocking message
     const activeTab = document.querySelector('.tab.active');
     if (activeTab) {
@@ -499,7 +637,7 @@ const FountainScan = {
           <h2>🚫 Website Blocked</h2>
           <p><strong>URL:</strong> ${this.currentUrl}</p>
           <p><strong>Risk Level:</strong> ${scanResult.status}</p>
-          <p><strong>reason_flaggeds:</strong> ${scanResult.issues.join(', ')}</p>
+          <p><strong>Reasons:</strong> ${scanResult.issues.join(', ')}</p>
           <div style="margin-top: 20px;">
             <button onclick="FountainScan.addCurrentToWhitelist()" style="margin: 5px; padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Add to Whitelist</button>
             <button onclick="FountainScan.disableBlocking()" style="margin: 5px; padding: 8px 16px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer;">Disable Blocking</button>
@@ -510,7 +648,7 @@ const FountainScan = {
     }
   },
 
-  // NEW: Add current site to whitelist from blocking screen
+  // Add current site to whitelist from blocking screen
   async addCurrentToWhitelist() {
     try {
       const url = new URL(this.currentUrl);
@@ -534,7 +672,7 @@ const FountainScan = {
     }
   },
 
-  // NEW: Disable blocking from blocking screen
+  // Disable blocking from blocking screen
   disableBlocking() {
     this.settings.blockingEnabled = false;
     this.saveSettings();
@@ -921,18 +1059,18 @@ const FountainScan = {
   // Report suspicious site
   async reportSite() {
     const urlInput = document.getElementById('reportUrl');
-    const reason_flaggedInput = document.getElementById('reportreason_flagged');
+    const reasonInput = document.getElementById('reportreason_flagged');
     const reportBtn = document.getElementById('reportBtn');
     
     const url = urlInput?.value.trim() || '';
-    const reason_flagged = reason_flaggedInput?.value.trim() || '';
+    const reason_flagged = reasonInput?.value.trim() || '';
     
     if (!url) {
       this.showMessage('Please enter a URL to report', 'error');
       return;
     }
     if (!reason_flagged) {
-      this.showMessage('Please provide a reason_flagged for reporting', 'error');
+      this.showMessage('Please provide a reason for reporting', 'error');
       return;
     }
     if (!this.isValidUrl(url)) {
@@ -966,7 +1104,7 @@ const FountainScan = {
       if (response.ok && result.success) {
         // Clear form on success
         urlInput.value = '';
-        reason_flaggedInput.value = '';
+        reasonInput.value = '';
         
         this.showMessage('Report submitted successfully! Thank you for helping keep users safe.', 'success');
         
