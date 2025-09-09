@@ -1,5 +1,4 @@
-I'm//popup.js
-// Extension state management
+//popup.js - Extension state management
 const FountainScan = {
   currentUrl: '',
   settings: {
@@ -12,22 +11,18 @@ const FountainScan = {
   whitelist: [],
   blacklist: [],
   
-  // Initialize extension
-  init() {
+  init() { // Initialize extension
     this.loadSettings();
     this.loadLists();
     this.setupEventListeners();
     this.switchTab('home');
     this.scanCurrentSite();
-    // Initialize blocking system
-    this.initializeBlocking();
+    this.initializeBlocking(); // Initialize blocking system
   },
 
-  // Initialize blocking system
-  initializeBlocking() {
+  initializeBlocking() { // Initialize blocking system
     if (typeof chrome !== 'undefined' && chrome.runtime) {
-      // Send current settings to background script
-      chrome.runtime.sendMessage({
+      chrome.runtime.sendMessage({ // Send current settings to background script
         action: 'updateSettings',
         settings: this.settings,
         blacklist: this.blacklist,
@@ -36,21 +31,18 @@ const FountainScan = {
     }
   },
 
-  // Load settings from storage
-  loadSettings() {
+  loadSettings() { // Load settings from storage
     try {
       if (typeof chrome !== 'undefined' && chrome.storage) {
         chrome.storage.local.get(['settings'], (result) => {
           if (result.settings) {
             this.settings = { ...this.settings, ...result.settings };
             this.applySettings();
-            // Update blocking when settings load
-            this.updateBlockingRules();
+            this.updateBlockingRules(); // Update blocking when settings load
           }
         });
       } else {
-        // Fallback for testing without chrome extension API
-        const saved = localStorage.getItem('fountainScanSettings');
+        const saved = localStorage.getItem('fountainScanSettings'); // Fallback for testing without chrome extension API
         if (saved) {
           this.settings = { ...this.settings, ...JSON.parse(saved) };
           this.applySettings();
@@ -61,16 +53,14 @@ const FountainScan = {
     }
   },
 
-  // Save settings to storage
-  saveSettings() {
+  saveSettings() { // Save settings to storage
     try {
       if (typeof chrome !== 'undefined' && chrome.storage) {
         chrome.storage.local.set({ settings: this.settings });
       } else {
         localStorage.setItem('fountainScanSettings', JSON.stringify(this.settings));
       }
-      // Update blocking rules when settings change
-      this.updateBlockingRules();
+      this.updateBlockingRules(); // Update blocking rules when settings change
       this.showMessage('Settings saved successfully!', 'success');
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -78,20 +68,17 @@ const FountainScan = {
     }
   },
 
-  // Load whitelist/blacklist from storage
-  loadLists() {
+  loadLists() { // Load whitelist/blacklist from storage
     try {
       if (typeof chrome !== 'undefined' && chrome.storage) {
         chrome.storage.local.get(['whitelist', 'blacklist'], (result) => {
           this.whitelist = result.whitelist || [];
           this.blacklist = result.blacklist || [];
           this.renderLists();
-          // Update blocking rules when lists load
-          this.updateBlockingRules();
+          this.updateBlockingRules(); // Update blocking rules when lists load
         });
       } else {
-        // Fallback for testing
-        this.whitelist = JSON.parse(localStorage.getItem('fountainScanWhitelist') || '[]');
+        this.whitelist = JSON.parse(localStorage.getItem('fountainScanWhitelist') || '[]'); // Fallback for testing
         this.blacklist = JSON.parse(localStorage.getItem('fountainScanBlacklist') || '[]');
         this.renderLists();
       }
@@ -100,8 +87,7 @@ const FountainScan = {
     }
   },
 
-  // Save lists to storage
-  saveLists() {
+  saveLists() { // Save lists to storage
     try {
       if (typeof chrome !== 'undefined' && chrome.storage) {
         chrome.storage.local.set({ 
@@ -112,15 +98,13 @@ const FountainScan = {
         localStorage.setItem('fountainScanWhitelist', JSON.stringify(this.whitelist));
         localStorage.setItem('fountainScanBlacklist', JSON.stringify(this.blacklist));
       }
-      // Update blocking rules when lists change
-      this.updateBlockingRules();
+      this.updateBlockingRules(); // Update blocking rules when lists change
     } catch (error) {
       console.error('Error saving lists:', error);
     }
   },
 
-  // Update blocking rules in background script
-  updateBlockingRules() {
+  updateBlockingRules() { // Update blocking rules in background script
     if (typeof chrome !== 'undefined' && chrome.runtime) {
       chrome.runtime.sendMessage({
         action: 'updateBlockingRules',
@@ -133,18 +117,15 @@ const FountainScan = {
     }
   },
 
-  // Setup event listeners
-  setupEventListeners() {
-    // Navigation buttons
-    document.querySelectorAll('.nav-btn').forEach(btn => {
+  setupEventListeners() { // Setup event listeners
+    document.querySelectorAll('.nav-btn').forEach(btn => { // Navigation buttons
       btn.addEventListener('click', (e) => {
         const targetTab = e.target.dataset.tab;
         this.switchTab(targetTab);
       });
     });
 
-    // Action buttons
-    const rescanBtn = document.getElementById('rescanBtn');
+    const rescanBtn = document.getElementById('rescanBtn'); // Action buttons
     const addWhitelistBtn = document.getElementById('addWhitelistBtn');
     const addBlacklistBtn = document.getElementById('addBlacklistBtn');
     const reportBtn = document.getElementById('reportBtn');
@@ -166,8 +147,7 @@ const FountainScan = {
       saveSettingsBtn.addEventListener('click', () => this.saveSettingsFromForm());
     }
 
-    // Enter key support for input fields
-    const whitelistInput = document.getElementById('whitelistInput');
+    const whitelistInput = document.getElementById('whitelistInput'); // Enter key support for input fields
     const blacklistInput = document.getElementById('blacklistInput');
     if (whitelistInput) {
       whitelistInput.addEventListener('keypress', (e) => {
@@ -184,16 +164,14 @@ const FountainScan = {
       });
     }
 
-    // Theme change listeners
-    document.querySelectorAll("input[name='theme']").forEach(radio => {
+    document.querySelectorAll("input[name='theme']").forEach(radio => { // Theme change listeners
       radio.addEventListener("change", (e) => {
         this.settings.theme = e.target.value;
         this.applyTheme(e.target.value);
       });
     });
 
-    // Settings change listeners
-    const alertToggle = document.getElementById('alertToggle');
+    const alertToggle = document.getElementById('alertToggle'); // Settings change listeners
     const blockToggle = document.getElementById('blockToggle');
     if (alertToggle) {
       alertToggle.addEventListener('change', (e) => {
@@ -203,18 +181,15 @@ const FountainScan = {
     if (blockToggle) {
       blockToggle.addEventListener('change', (e) => {
         this.settings.blockingEnabled = e.target.checked;
-        // Update blocking immediately when toggle changes
-        this.updateBlockingRules();
+        this.updateBlockingRules(); // Update blocking immediately when toggle changes
       });
     }
 
-    // Input validation
-    document.querySelectorAll('input[type="text"], input[type="url"]').forEach(input => {
+    document.querySelectorAll('input[type="text"], input[type="url"]').forEach(input => { // Input validation
       input.addEventListener('input', this.validateInput.bind(this));
     });
 
-    // Listen for messages from blocked page
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
+    if (typeof chrome !== 'undefined' && chrome.runtime) { // Listen for messages from blocked page
       chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         this.handleMessage(message, sender, sendResponse);
         return true; // Keep message channel open
@@ -222,8 +197,7 @@ const FountainScan = {
     }
   },
 
-  // Handle messages from blocked page and background script
-  handleMessage(message, sender, sendResponse) {
+  handleMessage(message, sender, sendResponse) { // Handle messages from blocked page and background script
     switch (message.action) {
       case 'addToWhitelist':
         this.handleWhitelistRequest(message, sendResponse);
@@ -239,8 +213,7 @@ const FountainScan = {
     }
   },
 
-  // Handle whitelist request from blocked page
-  async handleWhitelistRequest(message, sendResponse) {
+  async handleWhitelistRequest(message, sendResponse) { // Handle whitelist request from blocked page
     try {
       const domain = message.domain;
       if (!domain) {
@@ -248,20 +221,17 @@ const FountainScan = {
         return;
       }
 
-      // Validate domain
-      if (!this.isValidDomain(domain)) {
+      if (!this.isValidDomain(domain)) { // Validate domain
         sendResponse({ success: false, error: 'Invalid domain format' });
         return;
       }
 
-      // Add to whitelist if not already present
-      if (!this.whitelist.some(d => d.toLowerCase() === domain.toLowerCase())) {
+      if (!this.whitelist.some(d => d.toLowerCase() === domain.toLowerCase())) { // Add to whitelist if not already present
         this.whitelist.push(domain);
         this.saveLists();
         this.renderLists();
         
-        // Notify background script to unblock
-        chrome.runtime.sendMessage({
+        chrome.runtime.sendMessage({ // Notify background script to unblock
           action: 'unblockDomain',
           domain: domain
         });
@@ -276,13 +246,11 @@ const FountainScan = {
     }
   },
 
-  // Handle report request from blocked page
-  async handleReportRequest(message, sendResponse) {
+  async handleReportRequest(message, sendResponse) { // Handle report request from blocked page
     try {
       const { url, reason_flagged, timestamp } = message;
       
-      // Submit report to backend
-      const response = await fetch('https://backend-uwk4.onrender.com/report', {
+      const response = await fetch('https://backend-uwk4.onrender.com/report', { // Submit report to backend
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -307,8 +275,7 @@ const FountainScan = {
     } catch (error) {
       console.error('Error submitting report:', error);
       
-      // Log locally as fallback
-      console.log('Report (logged locally):', {
+      console.log('Report (logged locally):', { // Log locally as fallback
         url: message.url,
         reason_flagged: message.reason_flagged,
         timestamp: message.timestamp || new Date().toISOString(),
@@ -324,10 +291,8 @@ const FountainScan = {
     }
   },
 
-  // Handle block info request from blocked page
-  handleBlockInfoRequest(sendResponse) {
-    // Get the most recent block info from storage or current state
-    chrome.storage.local.get(['lastBlockedSite'], (result) => {
+  handleBlockInfoRequest(sendResponse) { // Handle block info request from blocked page
+    chrome.storage.local.get(['lastBlockedSite'], (result) => { // Get the most recent block info from storage or current state
       const blockInfo = result.lastBlockedSite || {
         url: this.currentUrl || '',
         reason_flagged: 'Website flagged as potentially dangerous',
@@ -338,20 +303,14 @@ const FountainScan = {
     });
   },
 
-  // Enhanced domain matching for whitelist/blacklist
-  domainMatches(currentDomain, listDomain) {
-    // Remove protocol and www if present
-    const cleanDomain = listDomain.replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase();
+  domainMatches(currentDomain, listDomain) { // Enhanced domain matching for whitelist/blacklist
+    const cleanDomain = listDomain.replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase(); // Remove protocol and www if present
     const cleanCurrent = currentDomain.replace(/^(www\.)?/, '').toLowerCase();
     
-    // Exact match
-    if (cleanCurrent === cleanDomain) return true;
+    if (cleanCurrent === cleanDomain) return true; // Exact match
+    if (cleanCurrent.endsWith('.' + cleanDomain)) return true; // Subdomain match (e.g., sub.example.com matches example.com)
     
-    // Subdomain match (e.g., sub.example.com matches example.com)
-    if (cleanCurrent.endsWith('.' + cleanDomain)) return true;
-    
-    // Wildcard support (e.g., *.example.com)
-    if (cleanDomain.startsWith('*.')) {
+    if (cleanDomain.startsWith('*.')) { // Wildcard support (e.g., *.example.com)
       const baseDomain = cleanDomain.substring(2);
       return cleanCurrent.endsWith('.' + baseDomain) || cleanCurrent === baseDomain;
     }
@@ -359,29 +318,21 @@ const FountainScan = {
     return false;
   },
 
-  // Validate base domain format
-  isValidBaseDomain(domain) {
-    // Basic domain regex with support for international domains
-    const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
+  isValidBaseDomain(domain) { // Validate base domain format
+    const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/; // Basic domain regex with support for international domains
     
-    // Check basic format
-    if (!domainRegex.test(domain)) return false;
-    
-    // Additional checks
-    if (domain.length > 253) return false; // Max domain length
+    if (!domainRegex.test(domain)) return false; // Check basic format
+    if (domain.length > 253) return false; // Additional checks - Max domain length
     if (domain.includes('..')) return false; // No consecutive dots
     if (domain.startsWith('-') || domain.endsWith('-')) return false; // No leading/trailing hyphens
     
     return true;
   },
 
-  // Enhanced domain validation
-  isValidDomain(domain) {
-    // Clean the domain
-    const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase();
+  isValidDomain(domain) { // Enhanced domain validation
+    const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase(); // Clean the domain
     
-    // Check for wildcard pattern
-    if (cleanDomain.startsWith('*.')) {
+    if (cleanDomain.startsWith('*.')) { // Check for wildcard pattern
       const baseDomain = cleanDomain.substring(2);
       return this.isValidBaseDomain(baseDomain);
     }
@@ -389,32 +340,25 @@ const FountainScan = {
     return this.isValidBaseDomain(cleanDomain);
   },
 
-  // Normalize domain input
-  normalizeDomain(input) {
+  normalizeDomain(input) { // Normalize domain input
     if (!input) return '';
     
-    // Remove protocol, www, and trailing slash
-    let domain = input.toLowerCase()
+    let domain = input.toLowerCase() // Remove protocol, www, and trailing slash
       .replace(/^(https?:\/\/)?(www\.)?/, '')
       .replace(/\/$/, '');
     
-    // Remove path, query, and fragment
-    domain = domain.split('/')[0].split('?')[0].split('#')[0];
-    
-    // Remove port if present
-    domain = domain.split(':')[0];
+    domain = domain.split('/')[0].split('?')[0].split('#')[0]; // Remove path, query, and fragment
+    domain = domain.split(':')[0]; // Remove port if present
     
     return domain.trim();
   },
 
-  // Enhanced input validation with real-time feedback
-  validateInput(event) {
+  validateInput(event) { // Enhanced input validation with real-time feedback
     const input = event.target;
     const value = input.value.trim();
     const errorElement = input.parentElement.querySelector('.input-error');
     
-    // Remove existing error message
-    if (errorElement) {
+    if (errorElement) { // Remove existing error message
       errorElement.remove();
     }
     
@@ -436,8 +380,7 @@ const FountainScan = {
       }
     }
     
-    // Update input styling and validation
-    if (isValid) {
+    if (isValid) { // Update input styling and validation
       input.setCustomValidity('');
       input.classList.remove('invalid');
       input.classList.add('valid');
@@ -446,16 +389,14 @@ const FountainScan = {
       input.classList.remove('valid');
       input.classList.add('invalid');
       
-      // Show error message
-      const errorDiv = document.createElement('div');
+      const errorDiv = document.createElement('div'); // Show error message
       errorDiv.className = 'input-error';
       errorDiv.textContent = errorMessage;
       input.parentElement.appendChild(errorDiv);
     }
   },
 
-  // Validate URL format
-  isValidUrl(string) {
+  isValidUrl(string) { // Validate URL format
     try {
       new URL(string);
       return true;
@@ -464,12 +405,10 @@ const FountainScan = {
     }
   },
 
-  // Apply theme and settings
-  applySettings() {
+  applySettings() { // Apply theme and settings
     this.applyTheme(this.settings.theme);
     
-    // Update UI elements
-    const alertToggle = document.getElementById('alertToggle');
+    const alertToggle = document.getElementById('alertToggle'); // Update UI elements
     const blockToggle = document.getElementById('blockToggle');
     const systemLang = document.getElementById('systemLang');
     const alertLang = document.getElementById('alertLang');
@@ -479,29 +418,24 @@ const FountainScan = {
     if (systemLang) systemLang.value = this.settings.systemLang;
     if (alertLang) alertLang.value = this.settings.alertLang;
     
-    // Update theme radio buttons
-    const themeRadio = document.querySelector(`input[name="theme"][value="${this.settings.theme}"]`);
+    const themeRadio = document.querySelector(`input[name="theme"][value="${this.settings.theme}"]`); // Update theme radio buttons
     if (themeRadio) themeRadio.checked = true;
   },
 
-  // Apply theme
-  applyTheme(theme) {
+  applyTheme(theme) { // Apply theme
     document.body.className = theme;
     this.settings.theme = theme;
   },
 
-  // Switch between tabs
-  switchTab(targetId) {
-    // Remove active class from all tabs and nav buttons
-    document.querySelectorAll(".tab").forEach(tab => {
+  switchTab(targetId) { // Switch between tabs
+    document.querySelectorAll(".tab").forEach(tab => { // Remove active class from all tabs and nav buttons
       tab.classList.remove("active");
     });
     document.querySelectorAll(".nav-btn").forEach(btn => {
       btn.classList.remove("active");
     });
     
-    // Add active class to target tab and nav button
-    const targetTab = document.getElementById(targetId);
+    const targetTab = document.getElementById(targetId); // Add active class to target tab and nav button
     const targetBtn = document.querySelector(`[data-tab="${targetId}"]`);
     
     if (targetTab) {
@@ -512,28 +446,79 @@ const FountainScan = {
     }
   },
 
-  // Get current tab URL
-  getCurrentUrl() {
+  getCurrentUrl() { // Get current tab URL
     return new Promise((resolve) => {
       if (typeof chrome !== 'undefined' && chrome.tabs) {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
           resolve(tabs[0]?.url || 'about:blank');
         });
       } else {
-        // Fallback for testing
-        resolve(window.location.href);
+        resolve(window.location.href); // Fallback for testing
       }
     });
   },
 
-  // Main scan function - unified and organized
-  async scanCurrentSite() {
+  async fetchSupabaseBlacklist() { // Fetch blacklist from Supabase database
+    try {
+      const response = await fetch('https://backend-uwk4.onrender.com/blacklist', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        return result.blacklist || [];
+      } else {
+        console.error('Failed to fetch Supabase blacklist:', response.status);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching Supabase blacklist:', error);
+      return [];
+    }
+  },
+
+  animateStatusCircle(element, status) { // Add animation to status circle
+    if (!element) return;
+
+    element.style.transition = 'all 0.3s ease-in-out'; // Remove existing animations and apply transition
+    element.classList.remove('pulse-animation', 'danger-pulse', 'warning-pulse', 'safe-pulse');
+
+    let backgroundColor, animation;
+    
+    switch (status) {
+      case 'danger':
+        backgroundColor = '#e74c3c';
+        animation = 'danger-pulse';
+        break;
+      case 'warning':
+        backgroundColor = '#f39c12';
+        animation = 'warning-pulse';
+        break;
+      case 'safe':
+        backgroundColor = '#27ae60';
+        animation = 'safe-pulse';
+        break;
+      default:
+        backgroundColor = '#6c757d';
+        animation = 'pulse-animation';
+    }
+
+    element.style.background = backgroundColor;
+    
+    setTimeout(() => { // Add animation class after a brief delay
+      element.classList.add('pulse-animation', animation);
+    }, 100);
+  },
+
+  async scanCurrentSite() { // Main scan function - unified and organized
     try {
       const url = await this.getCurrentUrl();
       this.currentUrl = url;
       
-      // Update UI elements
-      const urlElement = document.getElementById('url');
+      const urlElement = document.getElementById('url'); // Update UI elements
       const statusElement = document.getElementById('status');
       const reason_flaggedElement = document.getElementById('reason_flagged');
       const statusCircle = document.getElementById('status-circle');
@@ -541,15 +526,15 @@ const FountainScan = {
       
       if (urlElement) urlElement.textContent = url;
       
-      // Set initial analyzing state
-      if (statusText) statusText.textContent = 'Analyzing...';
-      if (statusCircle) statusCircle.style.background = 'gray';
+      if (statusText) statusText.textContent = 'Analyzing...'; // Set initial analyzing state
+      if (statusCircle) {
+        statusCircle.style.background = 'gray';
+        this.animateStatusCircle(statusCircle, 'analyzing');
+      }
       
-      // Perform comprehensive scan
-      const scanResult = await this.performComprehensiveScan(url);
+      const scanResult = await this.performComprehensiveScan(url); // Perform comprehensive scan
       
-      // Update status elements
-      if (statusElement) {
+      if (statusElement) { // Update status elements
         statusElement.textContent = scanResult.status;
         statusElement.className = `status-${scanResult.level}`;
       }
@@ -559,22 +544,24 @@ const FountainScan = {
           scanResult.issues.join(', ') : 'No issues detected';
       }
       
-      // Update status circle and text
-      this.updateStatusUI(scanResult, statusCircle, statusText);
+      this.updateStatusUI(scanResult, statusCircle, statusText); // Update status circle and text
       
-      // Handle blocking for dangerous sites
-      if (scanResult.level === 'danger' && this.settings.blockingEnabled) {
-        // Check if site should be blocked
-        const urlObj = new URL(url);
+      if (scanResult.level === 'danger' && this.settings.blockingEnabled) { // Handle blocking for dangerous sites
+        const urlObj = new URL(url); // Check if site should be blocked
         const domain = urlObj.hostname.toLowerCase();
         
-        // Don't block if whitelisted
-        if (!this.whitelist.some(d => this.domainMatches(domain, d.toLowerCase()))) {
-          // Store block info for blocked page
-          await this.storeBlockInfo({
+        if (!this.whitelist.some(d => this.domainMatches(domain, d.toLowerCase()))) { // Don't block if whitelisted
+          await this.storeBlockInfo({ // Store block info for blocked page
             url: url,
             reason_flagged: scanResult.issues.join(', '),
             riskLevel: scanResult.status,
+
+        if (!this.whitelist.some(d => this.domainMatches(domain, d.toLowerCase()))) { // Don't block if whitelisted
+          await this.storeBlockInfo({ // Store block info for blocked page
+            url: url,
+            reason_flagged: scanResult.issues.join(', '),
+            riskLevel: scanResult.status,
+            score: scanResult.score,
             timestamp: new Date().toISOString()
           });
           
@@ -583,8 +570,7 @@ const FountainScan = {
         }
       }
       
-      // Show alert if needed (for non-blocked dangerous sites)
-      if (scanResult.level === 'danger' && this.settings.alertsEnabled) {
+      if (scanResult.level === 'danger' && this.settings.alertsEnabled) { // Show alert if needed (for non-blocked dangerous sites)
         this.showAlert(scanResult);
       }
       
@@ -592,51 +578,47 @@ const FountainScan = {
       console.error('Error scanning site:', error);
       this.showMessage('Error scanning current site', 'error');
       
-      // Update UI to show error state
-      const statusText = document.getElementById('status-text');
+      const statusText = document.getElementById('status-text'); // Update UI to show error state
       const statusCircle = document.getElementById('status-circle');
       if (statusText) statusText.textContent = 'Error';
-      if (statusCircle) statusCircle.style.background = 'gray';
+      if (statusCircle) {
+        statusCircle.style.background = 'gray';
+        this.animateStatusCircle(statusCircle, 'error');
+      }
     }
   },
 
-  // Store block info for blocked page access
-  async storeBlockInfo(blockInfo) {
+  async storeBlockInfo(blockInfo) { // Store block info for blocked page access
     if (typeof chrome !== 'undefined' && chrome.storage) {
       chrome.storage.local.set({ lastBlockedSite: blockInfo });
     }
   },
 
-  // Handle dangerous sites with blocking option
-  async handleDangerousSite(scanResult) {
+  async handleDangerousSite(scanResult) { // Handle dangerous sites with blocking option
     if (this.settings.blockingEnabled) {
-      // Immediately notify background script to block
-      if (typeof chrome !== 'undefined' && chrome.runtime) {
+      if (typeof chrome !== 'undefined' && chrome.runtime) { // Immediately notify background script to block
         chrome.runtime.sendMessage({
           action: 'blockCurrentTab',
           url: this.currentUrl,
-          reason_flagged: scanResult.issues.join(', ')
+          reason_flagged: `${scanResult.issues.join(', ')} - Score: ${scanResult.score}`
         });
       }
       
-      // Show blocking message in popup
-      this.showBlockingMessage(scanResult);
+      this.showBlockingMessage(scanResult); // Show blocking message in popup
     } else {
-      // Just show alert if blocking is disabled
-      this.showAlert(scanResult);
+      this.showAlert(scanResult); // Just show alert if blocking is disabled
     }
   },
 
-  // Show blocking message
-  showBlockingMessage(scanResult) {
-    // Replace popup content with blocking message
-    const activeTab = document.querySelector('.tab.active');
+  showBlockingMessage(scanResult) { // Show blocking message
+    const activeTab = document.querySelector('.tab.active'); // Replace popup content with blocking message
     if (activeTab) {
       activeTab.innerHTML = `
         <div style="text-align: center; padding: 20px; color: #d32f2f;">
           <h2>🚫 Website Blocked</h2>
           <p><strong>URL:</strong> ${this.currentUrl}</p>
           <p><strong>Risk Level:</strong> ${scanResult.status}</p>
+          <p><strong>Score:</strong> ${scanResult.score}/100</p>
           <p><strong>Reasons:</strong> ${scanResult.issues.join(', ')}</p>
           <div style="margin-top: 20px;">
             <button onclick="FountainScan.addCurrentToWhitelist()" style="margin: 5px; padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Add to Whitelist</button>
@@ -648,8 +630,7 @@ const FountainScan = {
     }
   },
 
-  // Add current site to whitelist from blocking screen
-  async addCurrentToWhitelist() {
+  async addCurrentToWhitelist() { // Add current site to whitelist from blocking screen
     try {
       const url = new URL(this.currentUrl);
       const domain = url.hostname.toLowerCase().replace(/^www\./, '');
@@ -658,8 +639,7 @@ const FountainScan = {
         this.whitelist.push(domain);
         this.saveLists();
         
-        // Reload the tab to unblock
-        if (typeof chrome !== 'undefined' && chrome.tabs) {
+        if (typeof chrome !== 'undefined' && chrome.tabs) { // Reload the tab to unblock
           const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
           if (tab) {
             chrome.tabs.reload(tab.id);
@@ -672,13 +652,11 @@ const FountainScan = {
     }
   },
 
-  // Disable blocking from blocking screen
-  disableBlocking() {
+  disableBlocking() { // Disable blocking from blocking screen
     this.settings.blockingEnabled = false;
     this.saveSettings();
     
-    // Reload the tab
-    if (typeof chrome !== 'undefined' && chrome.tabs) {
+    if (typeof chrome !== 'undefined' && chrome.tabs) { // Reload the tab
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]) {
           chrome.tabs.reload(tabs[0].id);
@@ -688,34 +666,21 @@ const FountainScan = {
     }
   },
 
-  // Update status UI components
-  updateStatusUI(scanResult, statusCircle, statusText) {
+  updateStatusUI(scanResult, statusCircle, statusText) { // Update status UI components with animation and score
     if (!statusCircle || !statusText) return;
     
-    switch (scanResult.level) {
-      case 'safe':
-        statusCircle.style.background = 'green';
-        statusText.textContent = 'Safe';
-        break;
-      case 'warning':
-        statusCircle.style.background = 'orange';
-        statusText.textContent = 'Suspicious';
-        break;
-      case 'danger':
-        statusCircle.style.background = 'red';
-        statusText.textContent = this.settings.blockingEnabled ? 'Blocked' : 'Dangerous';
-        break;
-      default:
-        statusCircle.style.background = 'gray';
-        statusText.textContent = 'Unknown';
+    if (statusText) {
+      statusText.textContent = `${scanResult.status} (Score: ${scanResult.score || 0})`;
+    }
+
+    if (statusCircle) {
+      this.animateStatusCircle(statusCircle, scanResult.level);
     }
   },
 
-  // Enhanced detection patterns
-  getDetectionPatterns() {
+  getDetectionPatterns() { // Enhanced detection patterns
     return {
-      // High-risk scholarship scam patterns
-      scholarshipScams: {
+      scholarshipScams: { // High-risk scholarship scam patterns
         keywords: [
           'free-scholarship', 'guaranteed-scholarship', 'instant-scholarship',
           'scholarship-winner', 'congratulations-scholarship', 'scholarship-alert',
@@ -731,8 +696,7 @@ const FountainScan = {
         message: 'Potential scholarship scam detected'
       },
       
-      // Financial fraud patterns
-      financialFraud: {
+      financialFraud: { // Financial fraud patterns
         keywords: [
           'instant-money', 'guaranteed-loan', 'easy-cash', 'quick-loan',
           'no-collateral', 'emergency-loan', 'same-day-loan', 'payday-loan',
@@ -742,8 +706,7 @@ const FountainScan = {
         message: 'Financial fraud pattern detected'
       },
       
-      // Nigerian-specific scam patterns
-      nigerianScams: {
+      nigerianScams: { // Nigerian-specific scam patterns
         keywords: [
           'npower', 'jamb-result', 'waec-result', 'inec-recruitment',
           'nnpc-recruitment', 'cbn-recruitment', 'federal-government',
@@ -754,8 +717,7 @@ const FountainScan = {
         message: 'Nigerian institution impersonation detected'
       },
       
-      // Urgency and pressure tactics
-      urgencyTactics: {
+      urgencyTactics: { // Urgency and pressure tactics
         keywords: [
           'urgent', 'limited-time', 'expires-soon', 'act-now',
           'dont-miss-out', 'last-chance', 'hurry', 'immediate',
@@ -767,8 +729,7 @@ const FountainScan = {
     };
   },
 
-  // Comprehensive scan function combining all checks
-  async performComprehensiveScan(url) {
+  async performComprehensiveScan(url) { // Comprehensive scan function combining all checks including Supabase
     const issues = [];
     let score = 0;
     
@@ -777,8 +738,7 @@ const FountainScan = {
       const domain = urlObj.hostname.toLowerCase();
       const fullUrl = url.toLowerCase();
       
-      // Check if domain is whitelisted (highest priority)
-      if (this.whitelist.some(d => this.domainMatches(domain, d.toLowerCase()))) {
+      if (this.whitelist.some(d => this.domainMatches(domain, d.toLowerCase()))) { // Check if domain is whitelisted (highest priority)
         return {
           status: 'Trusted (Whitelisted)',
           level: 'safe',
@@ -787,27 +747,25 @@ const FountainScan = {
         };
       }
       
-      // Check if domain is blacklisted (second highest priority)
-      if (this.blacklist.some(d => this.domainMatches(domain, d.toLowerCase()))) {
-        return {
-          status: 'Blocked (Blacklisted)',
-          level: 'danger',
-          issues: ['Domain is blacklisted'],
-          score: 10
-        };
+      if (this.blacklist.some(d => this.domainMatches(domain, d.toLowerCase()))) { // Check if domain is in local blacklist
+        score += 70;
+        issues.push('Domain is in local blacklist');
+      }
+
+      const supabaseBlacklist = await this.fetchSupabaseBlacklist(); // Check Supabase blacklist
+      if (supabaseBlacklist.some(entry => this.domainMatches(domain, entry.domain || entry))) {
+        score += 70;
+        issues.push('Domain is in security database');
       }
       
-      // Security checks
-      if (urlObj.protocol !== 'https:') {
-        score += 2;
+      if (urlObj.protocol !== 'https:') { // Security checks
+        score += 10;
         issues.push('No HTTPS encryption');
       }
       
-      // Enhanced keyword detection
-      const patterns = this.getDetectionPatterns();
+      const patterns = this.getDetectionPatterns(); // Enhanced keyword detection
       
-      // Get page content if possible
-      let pageContent = '';
+      let pageContent = ''; // Get page content if possible
       try {
         if (typeof chrome !== 'undefined' && chrome.tabs && chrome.scripting) {
           const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -823,8 +781,7 @@ const FountainScan = {
         console.log('Could not access page content:', error);
       }
       
-      // Check patterns against URL and page content
-      Object.entries(patterns).forEach(([category, pattern]) => {
+      Object.entries(patterns).forEach(([category, pattern]) => { // Check patterns against URL and page content
         const foundInUrl = pattern.keywords.filter(keyword => 
           fullUrl.includes(keyword) || domain.includes(keyword)
         );
@@ -841,43 +798,38 @@ const FountainScan = {
         }
       });
       
-      // Additional security checks
-      const suspiciousTlds = ['.tk', '.ml', '.ga', '.cf', '.pw', '.top', '.click'];
+      const suspiciousTlds = ['.tk', '.ml', '.ga', '.cf', '.pw', '.top', '.click']; // Additional security checks
       suspiciousTlds.forEach(tld => {
         if (domain.endsWith(tld)) {
-          score += 2;
+          score += 15;
           issues.push(`Suspicious domain extension: ${tld}`);
         }
       });
       
-      // Check for URL shorteners
-      const shorteners = ['bit.ly', 'tinyurl.com', 'goo.gl', 't.co', 'short.link', 'ow.ly'];
+      const shorteners = ['bit.ly', 'tinyurl.com', 'goo.gl', 't.co', 'short.link', 'ow.ly']; // Check for URL shorteners
       if (shorteners.some(shortener => domain.includes(shortener))) {
-        score += 1;
+        score += 10;
         issues.push('URL shortener detected');
       }
       
-      // Check for suspicious domain characteristics
-      if (domain.includes('xn--')) {
-        score += 2;
+      if (domain.includes('xn--')) { // Check for suspicious domain characteristics
+        score += 15;
         issues.push('Internationalized domain (potential homograph attack)');
       }
       
-      // Check for excessive subdomains
-      const subdomains = domain.split('.');
+      const subdomains = domain.split('.'); // Check for excessive subdomains
       if (subdomains.length > 4) {
-        score += 1;
+        score += 10;
         issues.push('Excessive subdomains detected');
       }
       
-      // Determine risk level
-      let level = 'safe';
+      let level = 'safe'; // Determine risk level using same thresholds as background.js
       let status = 'Safe';
       
-      if (score >= 6) {
+      if (score >= 70) {
         level = 'danger';
         status = 'High Risk';
-      } else if (score >= 3) {
+      } else if (score >= 40) {
         level = 'warning';
         status = 'Medium Risk';
       }
@@ -895,9 +847,8 @@ const FountainScan = {
     }
   },
 
-  // Show security alert
-  showAlert(scanResult) {
-    const message = `Security Alert!\n\nWebsite: ${this.currentUrl}\nRisk Level: ${scanResult.status}\nIssues: ${scanResult.issues.join(', ')}\n\nDo you want to continue?`;
+  showAlert(scanResult) { // Show security alert
+    const message = `Security Alert!\n\nWebsite: ${this.currentUrl}\nRisk Level: ${scanResult.status}\nScore: ${scanResult.score}/100\nIssues: ${scanResult.issues.join(', ')}\n\nDo you want to continue?`;
     
     if (confirm(message)) {
       console.log('User chose to continue despite warning');
@@ -906,29 +857,24 @@ const FountainScan = {
     }
   },
 
-  // Show message to user
-  showMessage(text, type = 'info') {
-    // Remove existing messages
-    document.querySelectorAll('.message').forEach(msg => msg.remove());
+  showMessage(text, type = 'info') { // Show message to user
+    document.querySelectorAll('.message').forEach(msg => msg.remove()); // Remove existing messages
     
     const message = document.createElement('div');
     message.className = `message ${type}`;
     message.textContent = text;
     
-    // Insert at the top of the current tab
-    const activeTab = document.querySelector('.tab.active');
+    const activeTab = document.querySelector('.tab.active'); // Insert at the top of the current tab
     if (activeTab) {
       activeTab.insertBefore(message, activeTab.firstChild);
       
-      // Auto-remove after 3 seconds
-      setTimeout(() => {
+      setTimeout(() => { // Auto-remove after 3 seconds
         message.remove();
       }, 3000);
     }
   },
 
-  // Add domain to whitelist/blacklist
-  addToList(listType) {
+  addToList(listType) { // Add domain to whitelist/blacklist
     const input = document.getElementById(`${listType}Input`);
     if (!input) return;
     
@@ -952,40 +898,34 @@ const FountainScan = {
     const list = listType === 'whitelist' ? this.whitelist : this.blacklist;
     const otherList = listType === 'whitelist' ? this.blacklist : this.whitelist;
     
-    // Check if domain already exists
-    if (list.some(d => d.toLowerCase() === domain.toLowerCase())) {
+    if (list.some(d => d.toLowerCase() === domain.toLowerCase())) { // Check if domain already exists
       this.showMessage('Domain already exists in this list', 'error');
       return;
     }
     
-    // Check if domain exists in opposite list
-    if (otherList.some(d => d.toLowerCase() === domain.toLowerCase())) {
+    if (otherList.some(d => d.toLowerCase() === domain.toLowerCase())) { // Check if domain exists in opposite list
       const otherListName = listType === 'whitelist' ? 'blacklist' : 'whitelist';
       this.showMessage(`Domain exists in ${otherListName}. Remove it from there first.`, 'warning');
       return;
     }
     
-    // Add domain to list
-    list.push(domain);
+    list.push(domain); // Add domain to list
     this.saveLists();
     this.renderLists();
     
-    // Clear input and validation
-    input.value = '';
+    input.value = ''; // Clear input and validation
     input.classList.remove('valid', 'invalid');
     const errorElement = input.parentElement.querySelector('.input-error');
     if (errorElement) errorElement.remove();
     
     this.showMessage(`${domain} added to ${listType}`, 'success');
     
-    // Rescan if whitelist was updated
-    if (listType === 'whitelist') {
+    if (listType === 'whitelist') { // Rescan if whitelist was updated
       setTimeout(() => this.scanCurrentSite(), 500);
     }
   },
 
-  // Remove domain from list
-  removeFromList(listType, domain) {
+  removeFromList(listType, domain) { // Remove domain from list
     if (confirm(`Are you sure you want to remove "${domain}" from the ${listType}?`)) {
       const list = listType === 'whitelist' ? this.whitelist : this.blacklist;
       const index = list.findIndex(d => d.toLowerCase() === domain.toLowerCase());
@@ -996,16 +936,14 @@ const FountainScan = {
         this.renderLists();
         this.showMessage(`${domain} removed from ${listType}`, 'success');
         
-        // Rescan if whitelist was updated
-        if (listType === 'whitelist') {
+        if (listType === 'whitelist') { // Rescan if whitelist was updated
           setTimeout(() => this.scanCurrentSite(), 500);
         }
       }
     }
   },
 
-  // Render domain lists
-  renderLists() {
+  renderLists() { // Render domain lists
     ['whitelist', 'blacklist'].forEach(listType => {
       const ul = document.getElementById(`${listType}Items`);
       if (!ul) return;
@@ -1023,8 +961,7 @@ const FountainScan = {
         return;
       }
       
-      // Sort domains alphabetically
-      const sortedList = [...list].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+      const sortedList = [...list].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())); // Sort domains alphabetically
       
       sortedList.forEach(domain => {
         const li = document.createElement('li');
@@ -1033,8 +970,7 @@ const FountainScan = {
         domainSpan.className = 'domain-name';
         domainSpan.textContent = domain;
         
-        // Add wildcard indicator
-        if (domain.startsWith('*.')) {
+        if (domain.startsWith('*.')) { // Add wildcard indicator
           domainSpan.classList.add('wildcard');
           domainSpan.title = 'Wildcard pattern - matches all subdomains';
         }
@@ -1048,16 +984,14 @@ const FountainScan = {
         li.appendChild(removeBtn);
         ul.appendChild(li);
         
-        // Add event listener to the remove button
-        removeBtn.addEventListener('click', () => {
+        removeBtn.addEventListener('click', () => { // Add event listener to the remove button
           this.removeFromList(listType, domain);
         });
       });
     });
   },
 
-  // Report suspicious site
-  async reportSite() {
+  async reportSite() { // Report suspicious site
     const urlInput = document.getElementById('reportUrl');
     const reasonInput = document.getElementById('reportreason_flagged');
     const reportBtn = document.getElementById('reportBtn');
@@ -1078,15 +1012,13 @@ const FountainScan = {
       return;
     }
     
-    // Show loading state
-    if (reportBtn) {
+    if (reportBtn) { // Show loading state
       reportBtn.textContent = 'Submitting...';
       reportBtn.disabled = true;
     }
     
     try {
-      // Send report to backend
-      const response = await fetch('https://backend-uwk4.onrender.com/report', {
+      const response = await fetch('https://backend-uwk4.onrender.com/report', { // Send report to backend
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1102,14 +1034,12 @@ const FountainScan = {
       const result = await response.json();
       
       if (response.ok && result.success) {
-        // Clear form on success
-        urlInput.value = '';
+        urlInput.value = ''; // Clear form on success
         reasonInput.value = '';
         
         this.showMessage('Report submitted successfully! Thank you for helping keep users safe.', 'success');
         
-        // Also log the warning to track patterns
-        await this.logWarning(url, reason_flagged);
+        await this.logWarning(url, reason_flagged); // Also log the warning to track patterns
         
       } else {
         throw new Error(result.error || 'Failed to submit report');
@@ -1119,24 +1049,21 @@ const FountainScan = {
       console.error('Error submitting report:', error);
       this.showMessage(`Failed to submit report: ${error.message}`, 'error');
       
-      // Fallback: log locally for debugging
-      console.log('Report (failed to submit):', { 
+      console.log('Report (failed to submit):', { // Fallback: log locally for debugging
         url, 
         reason_flagged, 
         timestamp: new Date().toISOString(),
         error: error.message 
       });
     } finally {
-      // Reset button state
-      if (reportBtn) {
+      if (reportBtn) { // Reset button state
         reportBtn.textContent = 'Submit Report';
         reportBtn.disabled = false;
       }
     }
   },
 
-  // Log warning to backend for pattern analysis
-  async logWarning(url, reason_flagged) {
+  async logWarning(url, reason_flagged) { // Log warning to backend for pattern analysis
     try {
       await fetch('https://backend-uwk4.onrender.com/logs', {
         method: 'POST',
@@ -1156,8 +1083,7 @@ const FountainScan = {
     }
   },
 
-  // Save settings from form
-  saveSettingsFromForm() {
+  saveSettingsFromForm() { // Save settings from form
     const systemLang = document.getElementById('systemLang');
     const alertLang = document.getElementById('alertLang');
     
@@ -1171,17 +1097,14 @@ const FountainScan = {
     this.saveSettings();
   },
 
-  // Rescan current site
-  rescanSite() {
+  rescanSite() { // Rescan current site
     this.scanCurrentSite();
     this.showMessage('Site rescanned', 'success');
   }
 };
 
-// Expose for debugging
-window.FountainScan = FountainScan;
+window.FountainScan = FountainScan; // Expose for debugging
 
-// Initialize when DOM is loaded
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", () => { // Initialize when DOM is loaded
   FountainScan.init();
 });
