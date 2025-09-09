@@ -1,9 +1,8 @@
-// Content script for Fountain Scan extension
-// This script runs on every webpage to monitor content and detect potential scams
+// Content script for Fountain Scan extension - monitors content and detects potential scams
 
 (function() {
   'use strict';
-  
+
   let isAnalyzing = false;
   let lastAnalysisTime = 0;
   let observer = null;
@@ -12,13 +11,12 @@
     blockingEnabled: false,
     alertsEnabled: true
   };
-  
-  // Throttle analysis to avoid excessive API calls
-  const ANALYSIS_THROTTLE = 2000; // 2 seconds
+  let notificationStates = new Map(); // Track notification states per domain
+
+  const ANALYSIS_THROTTLE = 2000; // Throttle analysis to avoid excessive API calls - 2 seconds
   const CONTENT_CHANGE_DELAY = 1000; // 1 second delay after content changes
-  
-  // Load settings from storage
-  function loadSettings() {
+
+  function loadSettings() { // Load settings from storage
     if (chrome.storage) {
       chrome.storage.local.get(['settings'], (result) => {
         if (result.settings) {
@@ -27,22 +25,19 @@
       });
     }
   }
-  
-  // Extract and clean page content
-  function extractPageContent() {
+
+  function extractPageContent() { // Extract and clean page content
     try {
       let textContent = '';
-      
-      // Priority content areas
-      const prioritySelectors = [
+
+      const prioritySelectors = [ // Priority content areas
         'title', 'h1', 'h2', 'h3', 
         '.title', '.headline', '.header',
         'meta[name="description"]',
         'meta[property="og:description"]'
       ];
-      
-      // Extract priority content first
-      prioritySelectors.forEach(selector => {
+
+      prioritySelectors.forEach(selector => { // Extract priority content first
         const elements = document.querySelectorAll(selector);
         elements.forEach(el => {
           if (el.tagName === 'META') {
@@ -52,55 +47,44 @@
           }
         });
       });
-      
-      // Get body text (filtered to avoid noise)
-      const bodyText = document.body.innerText || '';
+
+      const bodyText = document.body.innerText || ''; // Get body text (filtered to avoid noise)
       const cleanBodyText = bodyText
         .replace(/\s+/g, ' ')
         .replace(/[\n\r\t]/g, ' ')
         .toLowerCase()
         .trim();
-      
-      // Combine and clean
-      const fullContent = (textContent + ' ' + cleanBodyText)
+
+      const fullContent = (textContent + ' ' + cleanBodyText) // Combine and clean
         .toLowerCase()
         .replace(/\s+/g, ' ')
         .trim();
-      
+
       return fullContent.substring(0, 5000); // Limit content size
-      
+
     } catch (error) {
       console.error('FountainScan: Error extracting page content:', error);
       return '';
     }
   }
-  
-  // Comprehensive scan combining pattern detection and scoring
-  function scanPageContent() {
+
+  function scanPageContent() { // Comprehensive scan combining pattern detection and scoring
     const content = extractPageContent();
     const pageTitle = document.title.toLowerCase();
     const url = window.location.href.toLowerCase();
-    
-    // Combined suspicious patterns
-    const suspiciousPatterns = [
-      // Nigerian/scholarship scam keywords
-      'free scholarship', 'guaranteed scholarship', 'instant scholarship',
+
+    const suspiciousPatterns = [ // Combined suspicious patterns
+      'free scholarship', 'guaranteed scholarship', 'instant scholarship', // Nigerian/scholarship scam keywords
       'scholarship winner', 'congratulations scholarship', 'urgent scholarship',
       'congratulations you have won', 'nigerian scholarship winner',
       'scholarship processing fee', 'pay processing fee',
-      
-      // Identity/financial scams
-      'enter your bvn', 'enter your nin', 'nin registration', 'bvn verification',
+      'enter your bvn', 'enter your nin', 'nin registration', 'bvn verification', // Identity/financial scams
       'bank verification number', 'national identity number',
       'guaranteed loan', 'instant money', 'easy cash', 'work from home',
       'get rich quick', 'no collateral required', 'instant approval',
-      
-      // Government/recruitment scams
-      'npower recruitment', 'jamb result', 'waec result',
+      'npower recruitment', 'jamb result', 'waec result', // Government/recruitment scams
       'federal government recruitment', 'ministry recruitment',
-      
-      // Urgency tactics
-      'act now', 'limited time', 'expires today', 'last chance',
+      'act now', 'limited time', 'expires today', 'last chance', // Urgency tactics
       'while supplies last', 'urgent action required', 'urgent scholarship application',
       'limited time scholarship', 'guaranteed scholarship approval'
     ];
@@ -108,29 +92,27 @@
     const foundPatterns = [];
     let suspiciousScore = 0;
 
-    // Check for suspicious patterns in content and title
-    suspiciousPatterns.forEach(pattern => {
+    suspiciousPatterns.forEach(pattern => { // Check for suspicious patterns in content and title
       if (content.includes(pattern) || pageTitle.includes(pattern)) {
         foundPatterns.push(pattern);
         suspiciousScore += 2;
       }
     });
 
-    // Check for suspicious form fields
-    const forms = document.querySelectorAll('form');
+    const forms = document.querySelectorAll('form'); // Check for suspicious form fields
     forms.forEach(form => {
       const inputs = form.querySelectorAll('input, select, textarea');
       inputs.forEach(input => {
         const placeholder = (input.placeholder || '').toLowerCase();
         const label = (input.labels?.[0]?.textContent || '').toLowerCase();
         const name = (input.name || '').toLowerCase();
-        
+
         const sensitiveFields = [
           'nin', 'bvn', 'account number', 'routing number',
           'social security', 'credit card', 'cvv', 'pin',
           'mother maiden name', 'birth certificate'
         ];
-        
+
         sensitiveFields.forEach(field => {
           if (placeholder.includes(field) || label.includes(field) || name.includes(field)) {
             foundPatterns.push(`Requests ${field}`);
@@ -140,33 +122,31 @@
       });
     });
 
-    // Check for suspicious external links
-    const links = document.querySelectorAll('a[href^="http"]');
+    const links = document.querySelectorAll('a[href^="http"]'); // Check for suspicious external links
     let suspiciousLinks = 0;
-    
+
     links.forEach(link => {
       const href = link.href.toLowerCase();
       const suspiciousDomains = ['.tk', '.ml', '.ga', '.cf', '.pw', '.top', '.click'];
-      
+
       if (suspiciousDomains.some(domain => href.includes(domain))) {
         suspiciousLinks++;
       }
     });
-    
+
     if (suspiciousLinks > 3) {
       foundPatterns.push(`${suspiciousLinks} suspicious external links`);
       suspiciousScore += Math.min(suspiciousLinks, 10);
     }
 
-    // Check for excessive urgency language
-    const urgencyWords = ['urgent', 'hurry', 'limited', 'expires', 'deadline'];
+    const urgencyWords = ['urgent', 'hurry', 'limited', 'expires', 'deadline']; // Check for excessive urgency language
     let urgencyCount = 0;
-    
+
     urgencyWords.forEach(word => {
       const matches = (content.match(new RegExp(word, 'g')) || []).length;
       urgencyCount += matches;
     });
-    
+
     if (urgencyCount > 10) {
       foundPatterns.push('Excessive urgency language');
       suspiciousScore += 2;
@@ -175,52 +155,58 @@
     return {
       score: suspiciousScore,
       patterns: foundPatterns,
-      isDangerous: suspiciousScore >= 8,
+      isDangerous: suspiciousScore >= 8, // Use same thresholds as background.js
       isWarning: suspiciousScore >= 4,
       content: content,
       url: window.location.href,
       domain: window.location.hostname
     };
   }
-  
-  // Check if the current page should be analyzed
-  function shouldAnalyzePage() {
+
+  function shouldAnalyzePage() { // Check if the current page should be analyzed
     const skipProtocols = ['chrome:', 'chrome-extension:', 'moz-extension:', 'about:', 'data:'];
     const currentUrl = window.location.href.toLowerCase();
-    
+
     if (skipProtocols.some(protocol => currentUrl.startsWith(protocol))) {
       return false;
     }
-    
+
     const now = Date.now();
     if (isAnalyzing || (now - lastAnalysisTime) < ANALYSIS_THROTTLE) {
       return false;
     }
-    
+
     const content = extractPageContent();
     return content.length >= 50;
   }
-  
-  // Show on-page notification
-  function showPageNotification(scanResult) {
-    // Remove existing notifications
-    const existingNotifications = document.querySelectorAll('.fountainscan-notification');
+
+  function showPageNotification(scanResult) { // Show on-page notification
+    const domain = window.location.hostname;
+    const notificationKey = `notification_${domain}`;
+    
+    if (notificationStates.get(notificationKey) === 'disabled') { // Check if notifications are disabled for this domain
+      return;
+    }
+
+    const existingNotifications = document.querySelectorAll('.fountainscan-notification'); // Remove existing notifications
     existingNotifications.forEach(n => n.remove());
 
     const isDangerous = scanResult.isDangerous;
     const isWarning = scanResult.isWarning;
-    
+
     if (!isDangerous && !isWarning) return;
 
     const notification = document.createElement('div');
     notification.className = 'fountainscan-notification';
-    
+
     const notificationColor = isDangerous ? '#e74c3c' : '#f39c12';
     const notificationIcon = isDangerous ? '🚨' : '⚠️';
     const notificationTitle = isDangerous ? 'Security Alert' : 'Security Warning';
     const notificationText = isDangerous 
       ? 'This site may be fraudulent or dangerous'
       : 'This site shows some suspicious characteristics';
+
+    const notificationId = Date.now();
 
     notification.innerHTML = `
       <div style="
@@ -257,7 +243,7 @@
               ${notificationText}
             </p>
             <div style="font-size: 11px; color: #666; margin-bottom: 10px;">
-              Issues detected: ${scanResult.patterns.length}
+              Issues detected: ${scanResult.patterns.length} (Score: ${scanResult.score})
             </div>
             <div style="display: flex; gap: 8px;">
               <button onclick="this.closest('.fountainscan-notification').style.animation='slideOut 0.3s ease-in'; setTimeout(() => this.closest('.fountainscan-notification').remove(), 300);" style="
@@ -269,8 +255,21 @@
                 cursor: pointer;
                 font-size: 11px;
               ">Dismiss</button>
+              <button onclick="
+                window.postMessage({type: 'DISABLE_DOMAIN_NOTIFICATIONS', domain: '${domain}'}, '*');
+                this.closest('.fountainscan-notification').style.animation='slideOut 0.3s ease-in'; 
+                setTimeout(() => this.closest('.fountainscan-notification').remove(), 300);
+              " style="
+                background: #dc3545;
+                color: white;
+                border: none;
+                padding: 4px 8px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 11px;
+              ">Don't Show Again</button>
               ${isDangerous ? `
-                <button onclick="document.getElementById('fountainscan-details-${Date.now()}').style.display = document.getElementById('fountainscan-details-${Date.now()}').style.display === 'none' ? 'block' : 'none';" style="
+                <button onclick="document.getElementById('fountainscan-details-${notificationId}').style.display = document.getElementById('fountainscan-details-${notificationId}').style.display === 'none' ? 'block' : 'none';" style="
                   background: ${notificationColor};
                   color: white;
                   border: none;
@@ -282,7 +281,7 @@
               ` : ''}
             </div>
             ${isDangerous ? `
-              <div id="fountainscan-details-${Date.now()}" style="display: none; margin-top: 10px; padding: 8px; background: #f8f9fa; border-radius: 4px; font-size: 11px;">
+              <div id="fountainscan-details-${notificationId}" style="display: none; margin-top: 10px; padding: 8px; background: #f8f9fa; border-radius: 4px; font-size: 11px;">
                 <strong>Detected issues:</strong><br>
                 ${scanResult.patterns.slice(0, 3).join('<br>')}
                 ${scanResult.patterns.length > 3 ? `<br><em>...and ${scanResult.patterns.length - 3} more</em>` : ''}
@@ -314,8 +313,7 @@
 
     document.body.appendChild(notification);
 
-    // Auto-dismiss after 10 seconds for warnings, 15 for dangerous sites
-    const dismissTime = isDangerous ? 15000 : 10000;
+    const dismissTime = isDangerous ? 15000 : 10000; // Auto-dismiss after 10 seconds for warnings, 15 for dangerous sites
     setTimeout(() => {
       if (document.body.contains(notification)) {
         notification.style.animation = 'slideOut 0.3s ease-in';
@@ -328,8 +326,7 @@
     }, dismissTime);
   }
 
-  // Show warning overlay
-  function showWarningOverlay(scanResult) {
+  function showWarningOverlay(scanResult) { // Show warning overlay
     const existingOverlay = document.getElementById('fountainscan-overlay');
     if (existingOverlay) {
       existingOverlay.remove();
@@ -364,6 +361,9 @@
           <p style="margin-bottom: 20px; color: #333;">
             This website shows characteristics of a potential scam or fraudulent site.
           </p>
+          <div style="margin-bottom: 15px; color: #666;">
+            <strong>Risk Score:</strong> ${scanResult.score}/100
+          </div>
           <div style="
             background: #f8f9fa;
             padding: 15px;
@@ -377,7 +377,10 @@
             ${scanResult.patterns.length > 5 ? `<br>... and ${scanResult.patterns.length - 5} more` : ''}
           </div>
           <div style="margin-top: 20px;">
-            <button onclick="this.closest('#fountainscan-overlay').remove()" style="
+            <button onclick="
+              window.postMessage({type: 'DISABLE_DOMAIN_NOTIFICATIONS', domain: '${window.location.hostname}'}, '*');
+              this.closest('#fountainscan-overlay').remove();
+            " style="
               background: #28a745;
               color: white;
               border: none;
@@ -407,21 +410,19 @@
 
     document.body.appendChild(overlay);
   }
-  
-  // Main analysis function combining both approaches
-  function analyzePageContent() {
+
+  function analyzePageContent() { // Main analysis function combining both approaches
     if (!shouldAnalyzePage()) {
       return;
     }
-    
+
     isAnalyzing = true;
     lastAnalysisTime = Date.now();
-    
+
     try {
       const scanResult = scanPageContent();
-      
-      // Send to background script for analysis
-      chrome.runtime.sendMessage({
+
+      chrome.runtime.sendMessage({ // Send to background script for analysis
         type: 'PAGE_CONTENT',
         action: 'contentScanResult',
         ...scanResult,
@@ -429,30 +430,27 @@
       }).catch(error => {
         console.error('FountainScan: Error sending message to background script:', error);
       });
-      
-      // Handle threats with notifications
-      if (scanResult.isDangerous || scanResult.isWarning) {
-        // Send immediate threat notification for dangerous sites
-        if (scanResult.isDangerous) {
+
+      if (scanResult.isDangerous || scanResult.isWarning) { // Handle threats with notifications
+        if (scanResult.isDangerous) { // Send immediate threat notification for dangerous sites
           chrome.runtime.sendMessage({
             type: 'IMMEDIATE_THREAT',
             url: scanResult.url,
             threats: scanResult.patterns,
+            score: scanResult.score,
             timestamp: Date.now()
           }).catch(() => {});
         }
-        
+
         if (settings.alertsEnabled && !window.location.href.includes('blocked.html')) {
-          // Always show page notification for both warnings and dangerous sites
-          setTimeout(() => showPageNotification(scanResult), 500);
+          setTimeout(() => showPageNotification(scanResult), 500); // Always show page notification for both warnings and dangerous sites
           
-          // Show modal overlay only for dangerous sites
-          if (scanResult.isDangerous) {
+          if (scanResult.isDangerous) { // Show modal overlay only for dangerous sites
             setTimeout(() => showWarningOverlay(scanResult), 1000);
           }
         }
       }
-      
+
     } catch (error) {
       console.error('FountainScan: Error analyzing page content:', error);
     } finally {
@@ -461,27 +459,25 @@
       }, 1000);
     }
   }
-  
-  // Debounced analysis function
-  function debouncedAnalysis() {
+
+  function debouncedAnalysis() { // Debounced analysis function
     if (analysisTimer) {
       clearTimeout(analysisTimer);
     }
-    
+
     analysisTimer = setTimeout(() => {
       analyzePageContent();
     }, CONTENT_CHANGE_DELAY);
   }
-  
-  // Set up mutation observer to detect content changes
-  function setupContentObserver() {
+
+  function setupContentObserver() { // Set up mutation observer to detect content changes
     if (observer) {
       observer.disconnect();
     }
-    
+
     observer = new MutationObserver((mutations) => {
       let significantChange = false;
-      
+
       mutations.forEach(mutation => {
         if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
           mutation.addedNodes.forEach(node => {
@@ -494,12 +490,12 @@
           });
         }
       });
-      
+
       if (significantChange) {
         debouncedAnalysis();
       }
     });
-    
+
     if (document.body) {
       observer.observe(document.body, {
         childList: true,
@@ -508,11 +504,10 @@
       });
     }
   }
-  
-  // Handle SPA navigation and URL changes
-  function handleSPANavigation() {
+
+  function handleSPANavigation() { // Handle SPA navigation and URL changes
     let currentUrl = window.location.href;
-    
+
     const checkUrlChange = () => {
       if (window.location.href !== currentUrl) {
         currentUrl = window.location.href;
@@ -521,98 +516,54 @@
         }, 1500);
       }
     };
-    
+
     setInterval(checkUrlChange, 1000);
-    
+
     window.addEventListener('popstate', () => {
       setTimeout(() => {
         debouncedAnalysis();
       }, 500);
     });
   }
-  
-  // Listen for messages from background script
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => { // Listen for messages from background script
     switch (message.type) {
       case 'FORCE_SCAN':
         analyzePageContent();
         sendResponse({ success: true });
         break;
-        
+
       case 'GET_PAGE_CONTENT':
         const content = extractPageContent();
         sendResponse({ content: content });
         break;
-        
+
       default:
         sendResponse({ error: 'Unknown message type' });
     }
-    
+
     return true;
   });
-  
-  // Initialize content script
-  function initialize() {
+
+  window.addEventListener('message', (event) => { // Listen for internal messages (notification disable)
+    if (event.data.type === 'DISABLE_DOMAIN_NOTIFICATIONS') {
+      const notificationKey = `notification_${event.data.domain}`;
+      notificationStates.set(notificationKey, 'disabled');
+    }
+  });
+
+  function initialize() { // Initialize content script
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', initialize);
       return;
     }
-    
+
     try {
       loadSettings();
-      
-      // Perform initial analysis after a short delay
-      setTimeout(() => {
+
+      setTimeout(() => { // Perform initial analysis after a short delay
         analyzePageContent();
       }, 1000);
-      
+
       setupContentObserver();
-      handleSPANavigation();
-      
-      console.log('FountainScan: Content script initialized for', window.location.hostname);
-      
-    } catch (error) {
-      console.error('FountainScan: Error initializing content script:', error);
-    }
-  }
-  
-  // Handle page visibility and focus changes
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && shouldAnalyzePage()) {
-      setTimeout(() => {
-        debouncedAnalysis();
-      }, 1000);
-    }
-  });
-  
-  window.addEventListener('focus', () => {
-    setTimeout(() => {
-      if (shouldAnalyzePage()) {
-        debouncedAnalysis();
-      }
-    }, 500);
-  });
-  
-  // Listen for settings updates
-  if (chrome.storage) {
-    chrome.storage.onChanged.addListener((changes) => {
-      if (changes.settings) {
-        settings = { ...settings, ...changes.settings.newValue };
-      }
-    });
-  }
-  
-  // Clean up on page unload
-  window.addEventListener('beforeunload', () => {
-    if (observer) {
-      observer.disconnect();
-    }
-    if (analysisTimer) {
-      clearTimeout(analysisTimer);
-    }
-  });
-  
-  // Start initialization
-  initialize();
-  
-})();
+    
