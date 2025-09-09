@@ -1,4 +1,4 @@
-//popup.js
+I'm//popup.js
 // Extension state management
 const FountainScan = {
   currentUrl: '',
@@ -613,4 +613,575 @@ const FountainScan = {
       // Immediately notify background script to block
       if (typeof chrome !== 'undefined' && chrome.runtime) {
         chrome.runtime.sendMessage({
-          action: 'blo
+          action: 'blockCurrentTab',
+          url: this.currentUrl,
+          reason_flagged: scanResult.issues.join(', ')
+        });
+      }
+      
+      // Show blocking message in popup
+      this.showBlockingMessage(scanResult);
+    } else {
+      // Just show alert if blocking is disabled
+      this.showAlert(scanResult);
+    }
+  },
+
+  // Show blocking message
+  showBlockingMessage(scanResult) {
+    // Replace popup content with blocking message
+    const activeTab = document.querySelector('.tab.active');
+    if (activeTab) {
+      activeTab.innerHTML = `
+        <div style="text-align: center; padding: 20px; color: #d32f2f;">
+          <h2>🚫 Website Blocked</h2>
+          <p><strong>URL:</strong> ${this.currentUrl}</p>
+          <p><strong>Risk Level:</strong> ${scanResult.status}</p>
+          <p><strong>Reasons:</strong> ${scanResult.issues.join(', ')}</p>
+          <div style="margin-top: 20px;">
+            <button onclick="FountainScan.addCurrentToWhitelist()" style="margin: 5px; padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Add to Whitelist</button>
+            <button onclick="FountainScan.disableBlocking()" style="margin: 5px; padding: 8px 16px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer;">Disable Blocking</button>
+            <button onclick="window.close()" style="margin: 5px; padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">Close Tab</button>
+          </div>
+        </div>
+      `;
+    }
+  },
+
+  // Add current site to whitelist from blocking screen
+  async addCurrentToWhitelist() {
+    try {
+      const url = new URL(this.currentUrl);
+      const domain = url.hostname.toLowerCase().replace(/^www\./, '');
+      
+      if (!this.whitelist.some(d => d.toLowerCase() === domain)) {
+        this.whitelist.push(domain);
+        this.saveLists();
+        
+        // Reload the tab to unblock
+        if (typeof chrome !== 'undefined' && chrome.tabs) {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tab) {
+            chrome.tabs.reload(tab.id);
+            window.close(); // Close popup
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error adding to whitelist:', error);
+    }
+  },
+
+  // Disable blocking from blocking screen
+  disableBlocking() {
+    this.settings.blockingEnabled = false;
+    this.saveSettings();
+    
+    // Reload the tab
+    if (typeof chrome !== 'undefined' && chrome.tabs) {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]) {
+          chrome.tabs.reload(tabs[0].id);
+          window.close(); // Close popup
+        }
+      });
+    }
+  },
+
+  // Update status UI components
+  updateStatusUI(scanResult, statusCircle, statusText) {
+    if (!statusCircle || !statusText) return;
+    
+    switch (scanResult.level) {
+      case 'safe':
+        statusCircle.style.background = 'green';
+        statusText.textContent = 'Safe';
+        break;
+      case 'warning':
+        statusCircle.style.background = 'orange';
+        statusText.textContent = 'Suspicious';
+        break;
+      case 'danger':
+        statusCircle.style.background = 'red';
+        statusText.textContent = this.settings.blockingEnabled ? 'Blocked' : 'Dangerous';
+        break;
+      default:
+        statusCircle.style.background = 'gray';
+        statusText.textContent = 'Unknown';
+    }
+  },
+
+  // Enhanced detection patterns
+  getDetectionPatterns() {
+    return {
+      // High-risk scholarship scam patterns
+      scholarshipScams: {
+        keywords: [
+          'free-scholarship', 'guaranteed-scholarship', 'instant-scholarship',
+          'scholarship-winner', 'congratulations-scholarship', 'scholarship-alert',
+          'urgent-scholarship', 'limited-scholarship', 'scholarship-opportunity',
+          'scholarship-grant', 'education-grant', 'student-aid-program',
+          'free scholarship', 'instant money', 'guaranteed loan',
+          'easy cash', 'work from home', 'get rich quick',
+          'no-experience-required', 'make-money-fast', 
+          'nin', 'bvn', 'guaranteed', 'National Identity Number', 
+          'free', 'Bank Verification Number', 'payment verification', 'pin'
+        ],
+        score: 4,
+        message: 'Potential scholarship scam detected'
+      },
+      
+      // Financial fraud patterns
+      financialFraud: {
+        keywords: [
+          'instant-money', 'guaranteed-loan', 'easy-cash', 'quick-loan',
+          'no-collateral', 'emergency-loan', 'same-day-loan', 'payday-loan',
+          'cash-advance', 'loan-approved', 'credit-repair', 'debt-relief'
+        ],
+        score: 3,
+        message: 'Financial fraud pattern detected'
+      },
+      
+      // Nigerian-specific scam patterns
+      nigerianScams: {
+        keywords: [
+          'npower', 'jamb-result', 'waec-result', 'inec-recruitment',
+          'nnpc-recruitment', 'cbn-recruitment', 'federal-government',
+          'state-government', 'local-government', 'ministry-recruitment',
+          'nddc-scholarship', 'tetfund', 'ptdf-scholarship'
+        ],
+        score: 3,
+        message: 'Nigerian institution impersonation detected'
+      },
+      
+      // Urgency and pressure tactics
+      urgencyTactics: {
+        keywords: [
+          'urgent', 'limited-time', 'expires-soon', 'act-now',
+          'dont-miss-out', 'last-chance', 'hurry', 'immediate',
+          'deadline-today', 'offer-expires', 'while-supplies-last'
+        ],
+        score: 1,
+        message: 'Urgency pressure tactic detected'
+      }
+    };
+  },
+
+  // Comprehensive scan function combining all checks
+  async performComprehensiveScan(url) {
+    const issues = [];
+    let score = 0;
+    
+    try {
+      const urlObj = new URL(url);
+      const domain = urlObj.hostname.toLowerCase();
+      const fullUrl = url.toLowerCase();
+      
+      // Check if domain is whitelisted (highest priority)
+      if (this.whitelist.some(d => this.domainMatches(domain, d.toLowerCase()))) {
+        return {
+          status: 'Trusted (Whitelisted)',
+          level: 'safe',
+          issues: [],
+          score: 0
+        };
+      }
+      
+      // Check if domain is blacklisted (second highest priority)
+      if (this.blacklist.some(d => this.domainMatches(domain, d.toLowerCase()))) {
+        return {
+          status: 'Blocked (Blacklisted)',
+          level: 'danger',
+          issues: ['Domain is blacklisted'],
+          score: 10
+        };
+      }
+      
+      // Security checks
+      if (urlObj.protocol !== 'https:') {
+        score += 2;
+        issues.push('No HTTPS encryption');
+      }
+      
+      // Enhanced keyword detection
+      const patterns = this.getDetectionPatterns();
+      
+      // Get page content if possible
+      let pageContent = '';
+      try {
+        if (typeof chrome !== 'undefined' && chrome.tabs && chrome.scripting) {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tab && tab.id) {
+            const results = await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              func: () => document.body.innerText.toLowerCase()
+            });
+            pageContent = results[0]?.result || '';
+          }
+        }
+      } catch (error) {
+        console.log('Could not access page content:', error);
+      }
+      
+      // Check patterns against URL and page content
+      Object.entries(patterns).forEach(([category, pattern]) => {
+        const foundInUrl = pattern.keywords.filter(keyword => 
+          fullUrl.includes(keyword) || domain.includes(keyword)
+        );
+        
+        const foundInContent = pageContent ? pattern.keywords.filter(keyword => 
+          pageContent.includes(keyword)
+        ) : [];
+        
+        const allFound = [...new Set([...foundInUrl, ...foundInContent])];
+        
+        if (allFound.length > 0) {
+          score += pattern.score;
+          issues.push(`${pattern.message}: ${allFound.slice(0, 3).join(', ')}`);
+        }
+      });
+      
+      // Additional security checks
+      const suspiciousTlds = ['.tk', '.ml', '.ga', '.cf', '.pw', '.top', '.click'];
+      suspiciousTlds.forEach(tld => {
+        if (domain.endsWith(tld)) {
+          score += 2;
+          issues.push(`Suspicious domain extension: ${tld}`);
+        }
+      });
+      
+      // Check for URL shorteners
+      const shorteners = ['bit.ly', 'tinyurl.com', 'goo.gl', 't.co', 'short.link', 'ow.ly'];
+      if (shorteners.some(shortener => domain.includes(shortener))) {
+        score += 1;
+        issues.push('URL shortener detected');
+      }
+      
+      // Check for suspicious domain characteristics
+      if (domain.includes('xn--')) {
+        score += 2;
+        issues.push('Internationalized domain (potential homograph attack)');
+      }
+      
+      // Check for excessive subdomains
+      const subdomains = domain.split('.');
+      if (subdomains.length > 4) {
+        score += 1;
+        issues.push('Excessive subdomains detected');
+      }
+      
+      // Determine risk level
+      let level = 'safe';
+      let status = 'Safe';
+      
+      if (score >= 6) {
+        level = 'danger';
+        status = 'High Risk';
+      } else if (score >= 3) {
+        level = 'warning';
+        status = 'Medium Risk';
+      }
+      
+      return { status, level, issues, score };
+      
+    } catch (error) {
+      console.error('Scan error:', error);
+      return {
+        status: 'Error',
+        level: 'warning',
+        issues: ['Unable to scan URL'],
+        score: 0
+      };
+    }
+  },
+
+  // Show security alert
+  showAlert(scanResult) {
+    const message = `Security Alert!\n\nWebsite: ${this.currentUrl}\nRisk Level: ${scanResult.status}\nIssues: ${scanResult.issues.join(', ')}\n\nDo you want to continue?`;
+    
+    if (confirm(message)) {
+      console.log('User chose to continue despite warning');
+    } else if (this.settings.blockingEnabled) {
+      window.close();
+    }
+  },
+
+  // Show message to user
+  showMessage(text, type = 'info') {
+    // Remove existing messages
+    document.querySelectorAll('.message').forEach(msg => msg.remove());
+    
+    const message = document.createElement('div');
+    message.className = `message ${type}`;
+    message.textContent = text;
+    
+    // Insert at the top of the current tab
+    const activeTab = document.querySelector('.tab.active');
+    if (activeTab) {
+      activeTab.insertBefore(message, activeTab.firstChild);
+      
+      // Auto-remove after 3 seconds
+      setTimeout(() => {
+        message.remove();
+      }, 3000);
+    }
+  },
+
+  // Add domain to whitelist/blacklist
+  addToList(listType) {
+    const input = document.getElementById(`${listType}Input`);
+    if (!input) return;
+    
+    const rawDomain = input.value.trim();
+    if (!rawDomain) {
+      this.showMessage('Please enter a domain', 'error');
+      return;
+    }
+    
+    const domain = this.normalizeDomain(rawDomain);
+    if (!domain) {
+      this.showMessage('Please enter a valid domain', 'error');
+      return;
+    }
+    
+    if (!this.isValidDomain(domain)) {
+      this.showMessage('Please enter a valid domain format (e.g., example.com or *.example.com)', 'error');
+      return;
+    }
+    
+    const list = listType === 'whitelist' ? this.whitelist : this.blacklist;
+    const otherList = listType === 'whitelist' ? this.blacklist : this.whitelist;
+    
+    // Check if domain already exists
+    if (list.some(d => d.toLowerCase() === domain.toLowerCase())) {
+      this.showMessage('Domain already exists in this list', 'error');
+      return;
+    }
+    
+    // Check if domain exists in opposite list
+    if (otherList.some(d => d.toLowerCase() === domain.toLowerCase())) {
+      const otherListName = listType === 'whitelist' ? 'blacklist' : 'whitelist';
+      this.showMessage(`Domain exists in ${otherListName}. Remove it from there first.`, 'warning');
+      return;
+    }
+    
+    // Add domain to list
+    list.push(domain);
+    this.saveLists();
+    this.renderLists();
+    
+    // Clear input and validation
+    input.value = '';
+    input.classList.remove('valid', 'invalid');
+    const errorElement = input.parentElement.querySelector('.input-error');
+    if (errorElement) errorElement.remove();
+    
+    this.showMessage(`${domain} added to ${listType}`, 'success');
+    
+    // Rescan if whitelist was updated
+    if (listType === 'whitelist') {
+      setTimeout(() => this.scanCurrentSite(), 500);
+    }
+  },
+
+  // Remove domain from list
+  removeFromList(listType, domain) {
+    if (confirm(`Are you sure you want to remove "${domain}" from the ${listType}?`)) {
+      const list = listType === 'whitelist' ? this.whitelist : this.blacklist;
+      const index = list.findIndex(d => d.toLowerCase() === domain.toLowerCase());
+      
+      if (index > -1) {
+        list.splice(index, 1);
+        this.saveLists();
+        this.renderLists();
+        this.showMessage(`${domain} removed from ${listType}`, 'success');
+        
+        // Rescan if whitelist was updated
+        if (listType === 'whitelist') {
+          setTimeout(() => this.scanCurrentSite(), 500);
+        }
+      }
+    }
+  },
+
+  // Render domain lists
+  renderLists() {
+    ['whitelist', 'blacklist'].forEach(listType => {
+      const ul = document.getElementById(`${listType}Items`);
+      if (!ul) return;
+      
+      ul.innerHTML = '';
+      const list = listType === 'whitelist' ? this.whitelist : this.blacklist;
+      
+      if (list.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'empty-list';
+        li.textContent = `No domains in ${listType}`;
+        li.style.fontStyle = 'italic';
+        li.style.color = '#666';
+        ul.appendChild(li);
+        return;
+      }
+      
+      // Sort domains alphabetically
+      const sortedList = [...list].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+      
+      sortedList.forEach(domain => {
+        const li = document.createElement('li');
+        
+        const domainSpan = document.createElement('span');
+        domainSpan.className = 'domain-name';
+        domainSpan.textContent = domain;
+        
+        // Add wildcard indicator
+        if (domain.startsWith('*.')) {
+          domainSpan.classList.add('wildcard');
+          domainSpan.title = 'Wildcard pattern - matches all subdomains';
+        }
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-btn';
+        removeBtn.textContent = 'Remove';
+        removeBtn.title = `Remove ${domain} from ${listType}`;
+        
+        li.appendChild(domainSpan);
+        li.appendChild(removeBtn);
+        ul.appendChild(li);
+        
+        // Add event listener to the remove button
+        removeBtn.addEventListener('click', () => {
+          this.removeFromList(listType, domain);
+        });
+      });
+    });
+  },
+
+  // Report suspicious site
+  async reportSite() {
+    const urlInput = document.getElementById('reportUrl');
+    const reasonInput = document.getElementById('reportreason_flagged');
+    const reportBtn = document.getElementById('reportBtn');
+    
+    const url = urlInput?.value.trim() || '';
+    const reason_flagged = reasonInput?.value.trim() || '';
+    
+    if (!url) {
+      this.showMessage('Please enter a URL to report', 'error');
+      return;
+    }
+    if (!reason_flagged) {
+      this.showMessage('Please provide a reason for reporting', 'error');
+      return;
+    }
+    if (!this.isValidUrl(url)) {
+      this.showMessage('Please enter a valid URL', 'error');
+      return;
+    }
+    
+    // Show loading state
+    if (reportBtn) {
+      reportBtn.textContent = 'Submitting...';
+      reportBtn.disabled = true;
+    }
+    
+    try {
+      // Send report to backend
+      const response = await fetch('https://backend-uwk4.onrender.com/report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: url,
+          reason_flagged: reason_flagged,
+          email: null, // Optional: add email field to form if needed
+          timestamp: new Date().toISOString()
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        // Clear form on success
+        urlInput.value = '';
+        reasonInput.value = '';
+        
+        this.showMessage('Report submitted successfully! Thank you for helping keep users safe.', 'success');
+        
+        // Also log the warning to track patterns
+        await this.logWarning(url, reason_flagged);
+        
+      } else {
+        throw new Error(result.error || 'Failed to submit report');
+      }
+      
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      this.showMessage(`Failed to submit report: ${error.message}`, 'error');
+      
+      // Fallback: log locally for debugging
+      console.log('Report (failed to submit):', { 
+        url, 
+        reason_flagged, 
+        timestamp: new Date().toISOString(),
+        error: error.message 
+      });
+    } finally {
+      // Reset button state
+      if (reportBtn) {
+        reportBtn.textContent = 'Submit Report';
+        reportBtn.disabled = false;
+      }
+    }
+  },
+
+  // Log warning to backend for pattern analysis
+  async logWarning(url, reason_flagged) {
+    try {
+      await fetch('https://backend-uwk4.onrender.com/logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          domain_url: url,
+          detection_score: 80, // High score for user-reported sites
+          keywords: reason_flagged.split(' ').slice(0, 10), // Extract keywords from reason_flagged
+          source: 'user_report'
+        })
+      });
+    } catch (error) {
+      console.error('Error logging warning:', error);
+      // Don't show error to user for this background operation
+    }
+  },
+
+  // Save settings from form
+  saveSettingsFromForm() {
+    const systemLang = document.getElementById('systemLang');
+    const alertLang = document.getElementById('alertLang');
+    
+    if (systemLang && systemLang.value.trim()) {
+      this.settings.systemLang = systemLang.value.trim();
+    }
+    if (alertLang && alertLang.value.trim()) {
+      this.settings.alertLang = alertLang.value.trim();
+    }
+    
+    this.saveSettings();
+  },
+
+  // Rescan current site
+  rescanSite() {
+    this.scanCurrentSite();
+    this.showMessage('Site rescanned', 'success');
+  }
+};
+
+// Expose for debugging
+window.FountainScan = FountainScan;
+
+// Initialize when DOM is loaded
+document.addEventListener("DOMContentLoaded", () => {
+  FountainScan.init();
+});
